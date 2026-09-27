@@ -101,26 +101,12 @@
       .civic-grid { grid-template-columns: 1fr; }
     }
   </style>
+  <link rel="stylesheet" href="css/sidebar.css">
 </head>
 <body>
 
-  <!-- ── Top Navbar ─────────────────────────────────────────────── -->
-  <nav class="topbar" id="main-nav">
-    <a href="index.html" class="topbar-brand">
-      <img src="logo.png" alt="BAT Logo" style="height: 44px; width: auto; object-fit: contain;">
-    </a>
-    <ul class="topbar-links" id="nav-links">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="dashboard.html">Dashboard</a></li>
-      <li><a href="trends.html">Trends</a></li>
-      <li><a href="hospital.html">Hospital</a></li>
-      <li><a href="report.html">Report</a></li>
-      <li><a href="civic.html" class="active">Civic Action</a></li>
-      <li><a href="emergency.html" style="color:#dc2626 !important;font-weight:800">SOS</a></li>
-    </ul>
-    <div class="topbar-right" id="nav-auth-links"></div>
-    <button class="nav-toggle" id="nav-toggle" aria-label="Menu">&#9776;</button>
-  </nav>
+  <!-- ── Navigation ── -->
+  <script src="js/sidebar.js"></script>
 
   <main class="civic">
     <h1>Civic Action Tracker</h1>

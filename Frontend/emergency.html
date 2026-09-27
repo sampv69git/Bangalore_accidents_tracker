@@ -1,25 +1,155 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Emergency SOS — Bangalore Accident Tracker</title>
-  <meta name="theme-color" content="#b91c1c"><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="css/main.css">
-  <style>
-    .sos{max-width:760px;margin:0 auto;padding:96px 20px 40px}.sos-card{background:#fff;border:1px solid #fecaca;border-radius:20px;padding:28px;box-shadow:0 12px 34px #991b1b18}.sos h1{color:#991b1b}.emergency-calls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}.call{display:block;text-align:center;border-radius:12px;padding:18px;color:#fff;background:#b91c1c;font-size:1.25rem;font-weight:800}.call.alt{background:#0f766e}.sos label{display:block;font-weight:700;margin:16px 0 6px}.sos input,.sos textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px}.sos img{max-width:100%;max-height:280px;margin-top:12px;border-radius:12px}.status{padding:12px;border-radius:8px;background:#eff6ff;margin:14px 0}.hospital{border-top:1px solid #e2e8f0;padding:12px 0}.danger{background:#fee2e2;color:#991b1b;padding:12px;border-radius:8px}.sos-nav{position:fixed;top:0;left:0;right:0;background:#fff;padding:16px 24px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;z-index:3}
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Emergency SOS — Bangalore Accidents Tracker</title>
+  <meta name="description" content="Report a road accident happening now and alert the nearest hospitals that can treat accident victims.">
+  <meta name="theme-color" content="#dc2626">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/emergency.css">
+  <!-- Same MapLibre GL basemap as the dashboard -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="css/sidebar.css">
 </head>
 <body>
-  <nav class="sos-nav"><a href="index.html">← Home</a><strong>SOS emergency support</strong><a href="dashboard.html">Map</a></nav>
-  <main class="sos"><section class="sos-card">
-    <h1>Emergency assistance</h1><p>This tool supplements, and does not replace, emergency services. If anyone may be in danger, call now.</p>
-    <div class="emergency-calls"><a class="call" href="tel:112">Call 112</a><a class="call alt" href="tel:108">Call 108 Ambulance</a></div>
-    <div id="status" class="status">Getting your location only after you choose “Use my location”.</div>
-    <button class="btn btn-outline" id="location">Use my location</button>
-    <label for="photo">Scene photo (optional but helps hospitals)</label><input id="photo" type="file" accept="image/*" capture="environment"><img id="preview" hidden alt="Emergency scene preview">
-    <label for="details">What happened? (optional)</label><textarea id="details" rows="3" maxlength="500" placeholder="Briefly describe the scene; do not delay calling emergency services."></textarea>
-    <button class="btn btn-primary" id="send" disabled style="margin-top:18px;width:100%">Send emergency alert to nearby hospitals</button>
-    <p class="danger" style="margin-top:18px">AI severity, if shown, is estimated from a photo and may be wrong. Do not wait for this page before calling 108 or 112.</p>
-    <div id="result" aria-live="polite"></div>
-  </section></main>
-  <script src="js/bat-config.js"></script><script type="module" src="js/supabase-auth.js"></script><script src="js/emergency-app.js"></script><script src="js/pwa.js"></script><script src="js/i18n.js"></script>
-</body></html>
+  <script src="js/sidebar.js"></script>
+
+  <main class="emg-page">
+    <div id="resume"></div>
+    <div id="offline" class="notice notice--danger" hidden>You appear to be offline. <strong>Call 108 now</strong> — the SOS will be sent when you are back online.</div>
+
+    <h1 class="emg-title">Emergency SOS</h1>
+    <p class="emg-sub">Alert the nearest hospitals that can treat road-accident victims. Only the location is needed — everything else is optional and can be added later.</p>
+
+    <section class="emg-card" aria-labelledby="loc-h">
+      <h2 id="loc-h"><span class="emg-step">1</span>Where is the accident?</h2>
+      <div class="loc-status" role="status" aria-live="polite"><span class="loc-dot" id="loc-dot"></span><span id="loc-text">Finding your location…</span></div>
+      <div id="sos-map" class="emg-map" aria-label="Accident location map"></div>
+      <p class="hint" style="margin-top:8px;">Drag the red pin or tap the map if it is not exactly at the accident. The blue dot is your GPS position; the shaded circle shows how precise it is.</p>
+      <button type="button" class="btn btn-outline btn-sm" id="relocate" style="margin-top:8px;">Use my current location</button>
+    </section>
+
+    <section class="emg-card" aria-labelledby="tri-h">
+      <h2 id="tri-h"><span class="emg-step">2</span>What happened? <span class="hint">Optional — tap what you know</span></h2>
+
+      <div class="q">
+        <div class="q-label" id="q-injured">How many people are injured?</div>
+        <div class="chips" data-field="injured" role="group" aria-labelledby="q-injured">
+          <button type="button" class="chip" data-value="0">No one</button>
+          <button type="button" class="chip" data-value="1">1</button>
+          <button type="button" class="chip" data-value="2">2</button>
+          <button type="button" class="chip chip--danger" data-value="3+">3 or more</button>
+          <button type="button" class="chip" data-value="unknown">Not sure</button>
+        </div>
+      </div>
+      <div class="q">
+        <div class="q-label" id="q-conscious">Is anyone unconscious?</div>
+        <div class="chips" data-field="conscious" role="group" aria-labelledby="q-conscious">
+          <button type="button" class="chip chip--danger" data-value="no">Yes</button>
+          <button type="button" class="chip" data-value="yes">No</button>
+          <button type="button" class="chip" data-value="unknown">Not sure</button>
+        </div>
+      </div>
+      <div class="q">
+        <div class="q-label" id="q-breathing">Is anyone not breathing?</div>
+        <div class="chips" data-field="breathing" role="group" aria-labelledby="q-breathing">
+          <button type="button" class="chip chip--danger" data-value="no">Yes</button>
+          <button type="button" class="chip" data-value="yes">No</button>
+          <button type="button" class="chip" data-value="unknown">Not sure</button>
+        </div>
+      </div>
+      <div class="q">
+        <div class="q-label" id="q-bleeding">Heavy bleeding?</div>
+        <div class="chips" data-field="bleeding" role="group" aria-labelledby="q-bleeding">
+          <button type="button" class="chip chip--danger" data-value="yes">Yes</button>
+          <button type="button" class="chip" data-value="no">No</button>
+        </div>
+      </div>
+      <div class="q">
+        <div class="q-label" id="q-trapped">Is anyone trapped in a vehicle?</div>
+        <div class="chips" data-field="trapped" role="group" aria-labelledby="q-trapped">
+          <button type="button" class="chip chip--danger" data-value="yes">Yes</button>
+          <button type="button" class="chip" data-value="no">No</button>
+        </div>
+      </div>
+      <div class="q">
+        <div class="q-label" id="q-fire">Fire or fuel leak?</div>
+        <div class="chips" data-field="fire" role="group" aria-labelledby="q-fire">
+          <button type="button" class="chip chip--danger" data-value="yes">Yes</button>
+          <button type="button" class="chip" data-value="no">No</button>
+        </div>
+      </div>
+      <div class="q">
+        <div class="q-label" id="q-vehicles">Vehicles involved</div>
+        <div class="chips" data-field="vehicles" data-multi="true" role="group" aria-labelledby="q-vehicles">
+          <button type="button" class="chip" data-value="two_wheeler">Two-wheeler</button>
+          <button type="button" class="chip" data-value="car">Car</button>
+          <button type="button" class="chip" data-value="auto">Auto</button>
+          <button type="button" class="chip" data-value="bus_truck">Bus / truck</button>
+          <button type="button" class="chip" data-value="pedestrian">Pedestrian</button>
+          <button type="button" class="chip" data-value="cycle">Cycle</button>
+        </div>
+      </div>
+      <label class="check-row"><input type="checkbox" id="called-108"> I have already called 108</label>
+    </section>
+
+    <section class="emg-card" aria-labelledby="more-h">
+      <h2 id="more-h"><span class="emg-step">3</span>Anything else? <span class="hint">Optional</span></h2>
+      <div class="form-row">
+        <label for="photo">Photo of the scene</label>
+        <input type="file" id="photo" accept="image/*" capture="environment" class="form-control">
+        <div id="photo-preview" hidden style="gap:10px;align-items:center;">
+          <img id="photo-img" alt="Selected scene photo" style="width:96px;height:72px;object-fit:cover;border-radius:var(--radius-md);border:1px solid var(--color-border);">
+          <button type="button" class="btn btn-outline btn-sm" id="photo-remove">Remove / retake</button>
+        </div>
+        <span class="hint">Helps hospitals judge how serious it is. Shared only with the hospitals handling this alert.</span>
+      </div>
+      <div class="form-row">
+        <label for="note">Details for the ambulance</label>
+        <textarea id="note" class="form-control" maxlength="500" rows="3" placeholder="e.g. Bike rider hit by a car near the flyover exit, bleeding from the head"></textarea>
+      </div>
+      <div class="form-row">
+        <label for="phone">Your phone number</label>
+        <input type="tel" id="phone" class="form-control" inputmode="tel" autocomplete="tel" placeholder="So the ambulance crew can call you">
+        <span class="hint">Only shown to the hospital that accepts the case.</span>
+      </div>
+    </section>
+
+    <!-- Sticks to the bottom of the screen (above 108/112) until the end of the form is reached. -->
+    <div class="sos-sticky">
+      <div id="send-error" role="alert"></div>
+      <button type="button" class="sos-send" id="send" disabled>
+        <span aria-hidden="true">🚨</span>
+        <span id="send-label">Send SOS to nearby hospitals<small>Waiting for location…</small></span>
+      </button>
+    </div>
+
+    <section class="emg-card" id="nearby-card" hidden aria-labelledby="near-h">
+      <h3 id="near-h">Nearest emergency hospitals</h3>
+      <p class="hint">By drive time from the pin. You can also call them directly.</p>
+      <div id="nearby"></div>
+    </section>
+
+    <p class="disclaimer">BAT alerts nearby hospitals directly and shows you live progress. It supplements — it does not replace — the national emergency numbers. If anyone is in danger, call <strong>108</strong> (ambulance) or <strong>112</strong> as well.</p>
+  </main>
+
+  <div class="emg-callbar">
+    <a class="call-108" href="tel:108">📞 Call 108 Ambulance</a>
+    <a class="call-112" href="tel:112">📞 112</a>
+  </div>
+
+  <script src="js/bat-config.js"></script>
+  <script src="js/db.js"></script>
+  <script type="module" src="js/supabase-auth.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/page-effects.js"></script>
+  <script src="js/emergency-common.js"></script>
+  <script src="js/emergency-app.js"></script>
+  <script src="js/pwa.js"></script>
+  <script src="js/i18n.js"></script>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>

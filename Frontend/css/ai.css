@@ -1,0 +1,113 @@
+/* ai.css — styles for the AI features (Ask BAT, Safe Route, digest, risk layer, integrity panel).
+   Uses main.css tokens where present, with fallbacks so it also works on dashboard/admin pages. */
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+
+.ai-page { max-width: 980px; margin: 0 auto; padding: calc(var(--app-top, 65px) + 32px) 16px 48px; }
+.ai-head { margin-bottom: 16px; }
+.ai-title { font-size: clamp(1.8rem, 4vw, 2.4rem); margin-bottom: 6px; }
+.ai-sub { color: var(--text-secondary, #475569); max-width: 70ch; }
+.ai-status { margin-top: 10px; font-size: 0.85rem; color: var(--text-muted, #64748b); display: inline-flex; gap: 8px; align-items: center; }
+.ai-status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+.ai-status[data-state="on"]::before { background: #10b981; }
+.ai-status[data-state="off"]::before { background: #f59e0b; }
+.ai-status[data-state="error"]::before { background: #ef4444; }
+.ai-footnote { font-size: 0.78rem; color: var(--text-muted, #64748b); margin-top: 10px; }
+
+.suggestions, .followups { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
+.chip { border: 1px solid var(--color-border, #e2e8f0); background: #fff; color: var(--text-primary, #0f172a); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 0.85rem; cursor: pointer; transition: border-color .15s, background .15s; text-align: left; }
+.chip:hover { border-color: #0f172a; background: #f8fafc; }
+.chip-sm { font-size: 0.78rem; padding: 5px 11px; }
+
+.conversation { display: flex; flex-direction: column; gap: 16px; }
+.qa-card { background: #fff; border: 1px solid var(--color-border, #e2e8f0); border-radius: 16px; padding: 16px 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04); scroll-margin-top: 90px; }
+.question { font-weight: 700; margin-bottom: 10px; color: var(--text-primary, #0f172a); }
+.answer-text { color: var(--text-primary, #0f172a); line-height: 1.65; margin: 8px 0 4px; white-space: pre-wrap; }
+.answer-note { font-size: 0.8rem; color: #92400e; background: #fffbeb; border-radius: 8px; padding: 6px 10px; margin-top: 8px; }
+.answer-error { color: #b91c1c; }
+.thinking { color: var(--text-muted, #64748b); font-style: italic; }
+.thinking::after { content: ' ⏳'; }
+
+.ai-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-badge { font-size: 0.72rem; font-weight: 600; border-radius: 999px; padding: 3px 9px; }
+.ai-badge-ai { background: #eef2ff; color: #3730a3; }
+.ai-badge-rules { background: #f1f5f9; color: #334155; }
+.ai-badge-ok { background: #ecfdf5; color: #065f46; }
+.ai-badge-warn { background: #fffbeb; color: #92400e; }
+.ai-badge-bad { background: #fef2f2; color: #991b1b; }
+
+.chart-box { position: relative; height: 280px; margin: 14px 0 6px; }
+.ai-table-wrap { overflow-x: auto; margin-top: 10px; }
+.ai-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.ai-table th, .ai-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+.ai-table th { color: var(--text-muted, #64748b); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: .03em; }
+.ai-table td:not(:first-child), .ai-table th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+
+.trace { margin-top: 12px; font-size: 0.82rem; }
+.trace summary { cursor: pointer; color: var(--text-secondary, #475569); font-weight: 600; }
+.trace ol { margin: 8px 0 0 18px; display: flex; flex-direction: column; gap: 8px; }
+.trace-tool { font-weight: 700; }
+.trace-thought { color: var(--text-muted, #64748b); font-style: italic; }
+.trace-args { display: block; background: #f8fafc; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+.trace-summary { color: var(--text-secondary, #475569); }
+
+.ask-form { position: sticky; bottom: 12px; display: flex; gap: 8px; margin-top: 20px; background: rgba(248,250,252,.92); backdrop-filter: blur(8px); padding: 8px; border-radius: 14px; border: 1px solid var(--color-border, #e2e8f0); }
+.ask-input { flex: 1; min-width: 0; font: inherit; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--color-border, #e2e8f0); background: #fff; }
+.ask-input:focus { outline: 2px solid rgba(16,185,129,.4); border-color: #10b981; }
+.ask-btn { white-space: nowrap; }
+
+/* ── Digest card (Trends page) ── */
+.digest-card { background: linear-gradient(135deg, #0f172a, #1e293b); color: #e2e8f0; border-radius: 16px; padding: 20px 22px; margin-bottom: 24px; }
+.digest-card h3 { color: #fff; font-size: 1.25rem; margin: 6px 0 8px; letter-spacing: -0.01em; }
+.digest-card p { color: #cbd5e1; }
+.digest-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.digest-kicker { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; font-weight: 700; }
+.digest-toggle { display: inline-flex; background: rgba(255,255,255,.08); border-radius: 999px; padding: 3px; }
+.digest-toggle button { border: 0; background: transparent; color: #cbd5e1; font: inherit; font-size: 0.8rem; padding: 4px 12px; border-radius: 999px; cursor: pointer; }
+.digest-toggle button[aria-pressed="true"] { background: #fff; color: #0f172a; font-weight: 600; }
+.digest-bullets { margin: 10px 0 0 18px; color: #e2e8f0; display: grid; gap: 4px; }
+.digest-advice { margin-top: 12px; background: rgba(16,185,129,.12); border-left: 3px solid #10b981; padding: 8px 12px; border-radius: 6px; color: #d1fae5 !important; }
+.digest-meta { margin-top: 10px; font-size: 0.72rem; color: #94a3b8 !important; }
+
+/* ── Safe route page ── */
+.route-layout { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; }
+.route-panel { background: #fff; border: 1px solid var(--color-border, #e2e8f0); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.route-panel label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary, #475569); }
+.route-field { display: flex; gap: 6px; margin-top: 4px; }
+.route-field input { flex: 1; min-width: 0; font: inherit; padding: 9px 12px; border: 1px solid var(--color-border, #e2e8f0); border-radius: 10px; }
+.icon-btn { border: 1px solid var(--color-border, #e2e8f0); background: #fff; border-radius: 10px; padding: 0 10px; cursor: pointer; font-size: 0.8rem; }
+.icon-btn:hover { background: #f8fafc; }
+.route-hint { font-size: 0.75rem; color: var(--text-muted, #64748b); }
+#route-map { height: calc(100vh - 150px); min-height: 460px; border-radius: 16px; overflow: hidden; border: 1px solid var(--color-border, #e2e8f0); }
+.route-summary { font-weight: 600; color: var(--text-primary, #0f172a); }
+.route-card { border: 1px solid var(--color-border, #e2e8f0); border-radius: 12px; padding: 10px 12px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.route-card:hover, .route-card.active { border-color: #0f172a; box-shadow: 0 2px 8px rgba(15,23,42,.08); }
+.route-card.recommended { border-left: 4px solid #10b981; }
+.route-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.route-score { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.route-score small { font-size: 0.7rem; font-weight: 600; color: var(--text-muted, #64748b); }
+.route-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.78rem; color: var(--text-secondary, #475569); margin-top: 4px; }
+.route-disclaimer { font-size: 0.72rem; color: var(--text-muted, #64748b); }
+@media (max-width: 900px) { .route-layout { grid-template-columns: 1fr; } #route-map { height: 60vh; } }
+
+/* ── Risk layer controls on the dashboard ── */
+.risk-legend { display: none; margin-top: 8px; font-size: 11px; color: #334155; }
+.risk-legend.on { display: block; }
+.risk-legend .swatches { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.risk-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 3px; vertical-align: -2px; }
+.risk-legend .risk-note { margin-top: 4px; max-width: 280px; color: #64748b; line-height: 1.35; }
+
+/* ── Integrity (admin) ── */
+.integrity-pill { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
+.integrity-pill.ok { background: #ecfdf5; color: #065f46; }
+.integrity-pill.review { background: #fffbeb; color: #92400e; }
+.integrity-pill.bad { background: #fef2f2; color: #991b1b; }
+.integrity-pill.pending { background: #f1f5f9; color: #475569; }
+.integrity-panel { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin: 12px 0; background: #f8fafc; }
+.integrity-panel h4 { font-size: 13px; margin: 0 0 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.integrity-panel ul { margin: 6px 0 0 18px; font-size: 13px; color: #334155; display: grid; gap: 3px; }
+.integrity-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: #64748b; margin-top: 10px; }
+.integrity-ela { max-width: 100%; border-radius: 8px; margin-top: 6px; background: #000; }
+.integrity-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.integrity-actions button { font-size: 12px; }
+.integrity-caveat { font-size: 11px; color: #64748b; margin-top: 8px; }

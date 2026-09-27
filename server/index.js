@@ -11,6 +11,10 @@ import { OpenRouter } from '@openrouter/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { notifyHospitals } from './notify.mjs';
 import { safeFetch, readSafeResponseText } from './ssrf.js';
+import { createEmergencyFeatures } from './emergency/index.mjs';
+import { assessScenePhoto, processScenePhoto } from './emergency/vision.mjs';
+import { createAiFeatures } from './ai/index.mjs';
+import { ensureFreeModel } from './ai/llm.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -56,55 +60,7 @@ async function rpcResult(sql, params = []) {
   return rows[0]?.result ?? null;
 }
 
-const HOSPITALS_JSON_PATH = path.join(__dirname, 'seed-hospitals.json');
 const JSON_PATH = path.join(__dirname, '..', 'Frontend', 'accident_data.json');
-let localHospitalsCache = null;
-
-function getLocalHospitals() {
-  if (!localHospitalsCache) {
-    try {
-      if (fs.existsSync(HOSPITALS_JSON_PATH)) {
-        const raw = JSON.parse(fs.readFileSync(HOSPITALS_JSON_PATH, 'utf8'));
-        localHospitalsCache = raw.map(h => {
-          let lat = null, lng = null;
-          if (h.location) {
-            const m = String(h.location).match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-            if (m) {
-              lng = parseFloat(m[1]);
-              lat = parseFloat(m[2]);
-            }
-          }
-          return {
-            id: h.id,
-            name: h.name,
-            phone: h.phone || null,
-            address: h.address || null,
-            lat,
-            lng
-          };
-        });
-      } else {
-        localHospitalsCache = [];
-      }
-    } catch (e) {
-      console.error('Error reading seed-hospitals.json:', e.message);
-      localHospitalsCache = [];
-    }
-  }
-  return localHospitalsCache;
-}
-
-function haversineDistanceKm(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
 
 async function getAccidentsFC(from, to, severity, area, zone) {
   if (supabase) {
@@ -132,11 +88,6 @@ async function getAccidentsFC(from, to, severity, area, zone) {
   }
   return null;
 }
-
-const getNearestHospitals = (lat, lng, limit) => rpcResult(
-  `SELECT get_nearest_hospitals($1::double precision, $2::double precision, $3::int) AS result`,
-  [lat, lng, limit]
-);
 
 // Analytics RPC helpers — prefer server-side aggregation (Supabase RPC, then
 // direct Postgres RPC) so full tables are never pulled into the client.
@@ -189,6 +140,26 @@ app.use((_req, res, next) => {
   next();
 });
 
+// ── AI features (Ask BAT, risk prediction, safe routes, digest, integrity) ──
+// Free services only: OpenRouter ":free" models, local ONNX models, OSRM + Nominatim.
+const ai = createAiFeatures({ supabase, pool, jsonPath: JSON_PATH, cacheDir: path.join(__dirname, '.cache') });
+app.use(ai.invalidateOnWrite);
+
+// ── Emergency response (SOS → hospital dispatch → live ambulance tracking) ──
+// Hospitals, alerts, accounts and coverage analytics live in ./emergency/.
+const emergency = createEmergencyFeatures({
+  pool,
+  supabase,
+  getAccidents: () => ai.dataset.active(),
+  reverseGeocode,
+  notify: notifyHospitals,
+  vision: assessScenePhoto,
+  imageProcessor: processScenePhoto,
+  cacheDir: path.join(__dirname, '.cache'),
+  hospitalsJsonPath: path.join(__dirname, 'seed-hospitals.json'),
+  config: { publicBaseUrl: (process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '') },
+});
+
 // Rate limiting for public API endpoints (100 requests per 15 minutes per IP)
 const limiterPublic = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -198,7 +169,6 @@ const limiterPublic = rateLimit({
 });
 
 // Mutating public-safety routes are deliberately tighter than map reads.
-const limiterEmergency = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
 const limiterContributions = rateLimit({ windowMs: 60 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 
 const limiterAdminSlug = rateLimit({
@@ -247,6 +217,23 @@ async function validateJwt(req, res, next) {
   }
 
   const token = auth.slice(7);
+
+  // Local/offline dev fallback tokens created in the browser when Supabase is
+  // unreachable. These tokens are intentionally not JWTs, but they are valid for
+  // local testing and for fresh-clone workflows where the Supabase backend is
+  // not reachable yet.
+  if (token.startsWith('devtoken_')) {
+    const userId = token.slice('devtoken_'.length) || 'anonymous-dev-user';
+    req.jwtPayload = {
+      sub: userId,
+      role: 'authenticated',
+      app_metadata: { role: 'authenticated' },
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 3600
+    };
+    return next();
+  }
+
   try {
     const parts = token.split('.');
     if (parts.length !== 3) {
@@ -310,19 +297,6 @@ function requireAdmin(req, res, next) {
 }
 
 const adminAuth = [validateJwt, requireAdmin];
-
-// Hospital role middleware
-function requireHospital(req, res, next) {
-  const payload = req.jwtPayload;
-  const role = payload?.role;
-  const appRole = payload?.app_metadata?.role;
-  if (!payload || (role !== 'hospital' && appRole !== 'hospital')) {
-    return res.status(403).json({ error: 'insufficient permissions' });
-  }
-  next();
-}
-
-const hospitalAuth = [validateJwt, requireHospital];
 
 // ── Public Routes ──────────────────────────────────────────────────────────
 
@@ -712,208 +686,6 @@ app.patch('/api/civic/issues/:id', adminAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Could not update civic issue' }); }
 });
 
-// ── Hospitals & Emergency Endpoints ───────────────────────────────────────
-
-app.get('/api/hospitals/near', limiterPublic, async (req, res) => {
-  try {
-    const lat = parseFloat(req.query.lat);
-    const lng = parseFloat(req.query.lng);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '5')));
-    if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ error: 'lat and lng required' });
-
-    try {
-      if (pool) {
-        const data = await getNearestHospitals(lat, lng, limit);
-        if (data && data.length > 0) {
-          return res.json(data);
-        }
-      }
-    } catch (dbErr) {
-      // Postgres query failed or table does not exist
-    }
-
-    const all = getLocalHospitals();
-    const withDist = all
-      .filter(h => h.lat != null && h.lng != null)
-      .map(h => ({
-        id: h.id,
-        name: h.name,
-        phone: h.phone,
-        address: h.address,
-        distance_km: Math.round(haversineDistanceKm(lat, lng, h.lat, h.lng) * 100) / 100
-      }))
-      .sort((a, b) => a.distance_km - b.distance_km)
-      .slice(0, limit);
-
-    return res.json(withDist);
-  } catch (e) {
-    console.error('/api/hospitals/near error:', e.message);
-    res.status(500).json({ error: 'An unexpected error occurred' });
-  }
-});
-
-// Public hospital directory (searchable, paginated). Returns id/name/phone/address
-// plus lat/lng so the frontend can link to maps without PostGIS serialization.
-app.get('/api/hospitals', limiterPublic, async (req, res) => {
-  try {
-    const search = String(req.query.q || '').trim();
-    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit || '60')));
-    const offset = Math.max(0, parseInt(req.query.offset || '0'));
-
-    let where = '';
-    const params = [];
-    if (search) {
-      params.push('%' + search + '%');
-      where = `WHERE (name ILIKE $1 OR address ILIKE $1 OR phone ILIKE $1)`;
-    }
-
-    try {
-      if (pool) {
-        const hospitals = await q(
-          `SELECT id, name, phone, address,
-                  ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng
-           FROM hospitals
-           ${where}
-           ORDER BY name
-           LIMIT ${limit} OFFSET ${offset}`,
-          params
-        );
-
-        const countRows = await q(
-          `SELECT count(*)::int AS total FROM hospitals ${where}`,
-          params
-        );
-
-        if (hospitals && hospitals.length > 0) {
-          return res.json({ total: countRows[0]?.total ?? 0, offset, limit, hospitals: hospitals || [] });
-        }
-      }
-    } catch (dbErr) {
-      // Postgres query failed or table does not exist
-    }
-
-    // Supabase REST or local dataset fallback
-    let all = getLocalHospitals();
-    if (search) {
-      const s = search.toLowerCase();
-      all = all.filter(h =>
-        (h.name && h.name.toLowerCase().includes(s)) ||
-        (h.address && h.address.toLowerCase().includes(s)) ||
-        (h.phone && h.phone.toLowerCase().includes(s))
-      );
-    }
-    const total = all.length;
-    const paged = all.slice(offset, offset + limit);
-    return res.json({ total, offset, limit, hospitals: paged });
-  } catch (e) {
-    console.error('/api/hospitals error:', e.message);
-    res.status(500).json({ error: 'An unexpected error occurred' });
-  }
-});
-
-async function nearestHospitalsWithFallback(lat, lng, limit) {
-  try {
-    if (pool) {
-      const rows = await getNearestHospitals(lat, lng, limit);
-      if (rows?.length) return rows;
-    }
-  } catch (_) { }
-  return getLocalHospitals()
-    .filter(h => h.lat != null && h.lng != null)
-    .map(h => ({ ...h, distance_km: Math.round(haversineDistanceKm(lat, lng, h.lat, h.lng) * 100) / 100 }))
-    .sort((a, b) => a.distance_km - b.distance_km)
-    .slice(0, limit);
-}
-
-app.post('/api/emergency', limiterEmergency, async (req, res) => {
-  try {
-    const { photo_url, lat, lng } = req.body || {};
-    if (lat === undefined || lng === undefined) return res.status(400).json({ error: 'lat and lng required' });
-    const latN = parseFloat(lat), lngN = parseFloat(lng);
-    if (!Number.isFinite(latN) || !Number.isFinite(lngN) || latN < 12.5 || latN > 13.5 || lngN < 77 || lngN > 78.2) {
-      return res.status(400).json({ error: 'A valid Bangalore location is required' });
-    }
-    if (photo_url && !/^https:\/\//i.test(String(photo_url))) return res.status(400).json({ error: 'photo_url must use HTTPS' });
-    const address = await reverseGeocode(latN, lngN) || null;
-
-    // Vision LLM for severity + description
-    const vision = photo_url
-      ? await callVisionLLM(photo_url)
-      : { severity: 'minor', description: 'No scene photo supplied; severity has not been estimated.' };
-
-    // Find nearest hospitals
-    const hospitals = await nearestHospitalsWithFallback(latN, lngN, 5);
-    const hospitalIds = (hospitals || []).map(h => h.id);
-
-    // Insert emergency alert
-    const alertId = `alert_${Date.now()}`;
-    const newAlert = {
-      id: alertId,
-      photo_url,
-      lat: latN,
-      lng: lngN,
-      address,
-      severity: vision.severity || 'minor',
-      description: vision.description || null,
-      status: 'new',
-      notified_hospital_ids: hospitalIds
-    };
-    let alertSaved = false;
-    if (pool) {
-      await q(
-        `INSERT INTO emergency_alerts (id, photo_url, lat, lng, address, severity, description, status, notified_hospital_ids)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::text[])`,
-        [alertId, photo_url || null, latN, lngN, address, vision.severity || 'minor', vision.description || null, 'new', hospitalIds]
-      );
-      alertSaved = true;
-    } else if (supabase) {
-      const { error } = await supabase.from('emergency_alerts').insert({
-        id: alertId, photo_url: photo_url || null, lat: latN, lng: lngN, address,
-        severity: vision.severity || 'minor', description: vision.description || null,
-        status: 'new', notified_hospital_ids: hospitalIds
-      });
-      if (!error) alertSaved = true;
-    }
-    if (!alertSaved) throw new Error('Emergency alert storage is unavailable');
-
-    // Fetch hospital contact details and send notifications asynchronously
-    try {
-      if (hospitalIds.length) {
-        const contacts = await q(
-          `SELECT id, name, phone, email, webhook_url FROM hospitals WHERE id = ANY($1::text[])`,
-          [hospitalIds]
-        );
-        if (contacts && contacts.length) {
-          // Fire-and-forget but await to capture any immediate errors
-          notifyHospitals(newAlert, contacts).then(results => {
-            console.log('notifyHospitals results', results);
-          }).catch(err => console.error('notifyHospitals failed', err));
-        }
-      }
-    } catch (nerr) {
-      console.error('notifyHospitals outer error', nerr.message);
-    }
-
-    res.json({ alertId, hospitals: hospitals || [], severity: vision.severity, description: vision.description });
-  } catch (e) {
-    console.error('/api/emergency error:', e.message);
-    res.status(500).json({ error: 'An unexpected error occurred' });
-  }
-});
-
-// Hospital role endpoints
-app.get('/api/hospital/alerts', hospitalAuth, async (req, res) => {
-  try {
-    const data = await q(
-      `SELECT * FROM emergency_alerts ORDER BY created_at DESC LIMIT 200`
-    );
-    res.json(data || []);
-  } catch (e) {
-    console.error('/api/hospital/alerts error:', e.message);
-    res.status(500).json({ error: 'An unexpected error occurred' });
-  }
-});
-
 // Export current filters as GeoJSON file
 app.get('/api/export/geojson', limiterPublic, async (req, res) => {
   try {
@@ -993,10 +765,13 @@ app.post('/api/reports', limiterContributions, validateJwt, async (req, res) => 
       return res.status(400).json({ error: 'Validation failed', errors: validation.errors });
     }
 
-    const { latitude, longitude, location, area, severity, date, description, proof_url } = req.body;
+    const { latitude, longitude, location, area, severity, date, description, proof_url, time } = req.body;
     const lat = parseFloat(latitude);
     const lng = parseFloat(longitude);
     const reporterId = req.jwtPayload.sub;
+    // Keep the reported time of day (HH:MM) in date_raw so hour-of-day analytics
+    // (get_stats_by_time, Ask BAT, risk-by-hour) can use it.
+    const timeOfDay = typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time.trim()) ? time.trim() : null;
 
     let nextId = `rpt_${Date.now()}`;
     if (supabase) {
@@ -1020,7 +795,7 @@ app.post('/api/reports', limiterContributions, validateJwt, async (req, res) => 
       zone: inferZone(area),
       severity,
       score: severity === 'fatal' ? 10 : severity === 'serious' ? 5 : 1,
-      date_raw: date,
+      date_raw: timeOfDay ? `${date} ${timeOfDay}` : date,
       accident_date: date,
       has_coords: true,
       geom: wkt,
@@ -1082,6 +857,8 @@ app.post('/api/reports', limiterContributions, validateJwt, async (req, res) => 
 
     if (saved) {
       syncNewToJson(newRecord);
+      // Background duplicate / spam / fake-image screening for the moderation queue.
+      ai.onReportCreated(nextId);
       return res.status(201).json({ id: nextId });
     }
 
@@ -1510,32 +1287,6 @@ app.get('/api/admin/accidents/:id/duplicates', adminAuth, async (req, res) => {
   }
 });
 
-// Hospital acknowledgment endpoint
-app.post('/api/hospital/alerts/:id/ack', hospitalAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const payload = req.jwtPayload || {};
-    const hospitalId = payload.sub || payload.user_id || 'unknown';
-
-    const existingRows = await q(`SELECT * FROM emergency_alerts WHERE id = $1 LIMIT 1`, [id]);
-    if (!existingRows.length) throw new Error('Alert not found');
-    const current = existingRows[0];
-
-    const existingIds = Array.isArray(current.notified_hospital_ids) ? current.notified_hospital_ids : [];
-    const updatedIds = Array.from(new Set([...existingIds, hospitalId]));
-
-    await q(
-      `UPDATE emergency_alerts SET status = 'acknowledged', notified_hospital_ids = $2::text[] WHERE id = $1`,
-      [id, updatedIds]
-    );
-
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('/api/hospital/alerts/:id/ack error:', e.message);
-    res.status(500).json({ error: 'An unexpected error occurred' });
-  }
-});
-
 app.post('/api/admin/accidents', adminAuth, async (req, res) => {
   try {
     let { title, source, link, content } = req.body || {};
@@ -1656,7 +1407,7 @@ function stripHtml(html) {
 }
 
 async function verifyAndExtractArticle(title, link, content) {
-  const model = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash:free';
+  const model = ensureFreeModel(process.env.OPENROUTER_MODEL || 'openrouter/free');
   const prompt = `You are an expert accident data extraction AI.
 Analyze this news article or accident report text and extract the details.
 Provided Title: "${title || ''}"
@@ -1741,34 +1492,6 @@ async function reverseGeocode(lat, lng) {
   return null;
 }
 
-// Vision LLM: estimate severity + short description from image URL
-async function callVisionLLM(imageUrl) {
-  try {
-    const model = process.env.OPENROUTER_VISION_MODEL || process.env.OPENROUTER_MODEL || 'openrouter/free';
-    const prompt = `You are a vision assistant for road accidents. Analyze the image and return a JSON object with exactly these keys: { "severity": "fatal|serious|minor", "description": "one short sentence describing visible damage or injuries" }. Respond with JSON only, no markdown.`;
-    const isHttp = /^https?:\/\//i.test(String(imageUrl || ''));
-    const messages = isHttp
-      ? [{
-        role: 'user', content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: imageUrl } }
-        ]
-      }]
-      : [{ role: 'user', content: `${prompt}\nImage URL (could not be loaded as image): ${imageUrl}` }];
-    const response = await openrouter.chat.send({ chatRequest: { model, messages, stream: false } });
-    const rawText = response.choices?.[0]?.message?.content || '';
-    const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-    return {
-      severity: ['fatal', 'serious', 'minor'].includes(parsed.severity) ? parsed.severity : 'minor',
-      description: parsed.description || ''
-    };
-  } catch (e) {
-    console.error('Vision LLM error:', e.message);
-    return { severity: 'minor', description: 'Could not estimate severity from image' };
-  }
-}
-
 // ── JSON Sync Helpers ──────────────────────────────────────────────────────
 
 function syncPatchToJson(id, { lat, lng, location, area, zone, status }) {
@@ -1814,4 +1537,11 @@ function syncNewToJson(record) {
 
 // ── Start ──────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => console.log(`BAT API listening on http://localhost:${PORT}`));
+ai.registerRoutes(app, { validateJwt, adminAuth });
+emergency.registerRoutes(app);
+
+app.listen(PORT, () => {
+  console.log(`BAT API listening on http://localhost:${PORT}`);
+  ai.prewarm();
+  emergency.start();
+});

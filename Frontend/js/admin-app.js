@@ -113,6 +113,9 @@
    *
    * Requirements: 5.4, 5.5
    */
+  // Integrity UI (admin-integrity.js) uses the same authenticated fetch.
+  setTimeout(() => window.BATIntegrity?.init(authenticatedFetch, API), 0);
+
   async function authenticatedFetch(url, options = {}) {
     // Merge auth headers with any additional headers
     options.headers = { ...authHeaders(), ...(options.headers || {}) };
@@ -414,6 +417,7 @@
       if (r.status === 'pending' && r.reporter_id) {
         pendingBtns = `
           <button class="btn-review" data-action="review" data-row='${reviewData}'>Review</button>
+          <span class="integrity-pill pending" data-integrity-id="${esc(r.id)}">AI check…</span>
           <button class="btn-approve" data-action="approve" data-id="${esc(r.id)}">Approve</button>
           <button class="btn-reject" data-action="reject" data-id="${esc(r.id)}">Reject</button>
         `;
@@ -488,6 +492,8 @@
     tbody.querySelectorAll('.row-select').forEach(cb => { cb.addEventListener('change', () => {}); });
     // Reset header select-all checkbox when table is refreshed
     const selAll = document.getElementById('select-all'); if (selAll) selAll.checked = false;
+    // AI integrity verdicts for pending user reports
+    window.BATIntegrity?.loadBadges(tbody);
   }
 
   // ── Pagination ────────────────────────────────────────────────────────────
@@ -1388,6 +1394,7 @@
       </div>`;
 
     document.getElementById('review-description').textContent = row.description || 'No description provided.';
+    window.BATIntegrity?.renderPanel(document.getElementById('review-integrity'), row.id);
     document.getElementById('review-reject-reason').value = '';
     document.getElementById('review-error').hidden = true;
 

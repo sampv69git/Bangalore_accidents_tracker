@@ -251,6 +251,36 @@
         }
       });
 
+      // Predicted-risk grid (GET /api/risk/grid), drawn beneath the heatmap and points.
+      map.addSource('risk-grid', { type: 'geojson', data: emptyFC() });
+      map.addLayer({
+        id: 'risk-grid-fill',
+        type: 'fill',
+        source: 'risk-grid',
+        layout: { visibility: 'none' },
+        paint: {
+          'fill-color': ['match', ['get', 'level'], 'very_high', '#dc2626', 'high', '#fb923c', '#fde68a'],
+          'fill-opacity': 0.4,
+          'fill-outline-color': 'rgba(0,0,0,0.08)'
+        }
+      }, 'accidents-heat');
+      map.on('click', 'risk-grid-fill', (e) => {
+        if (map.queryRenderedFeatures(e.point, { layers: ['accidents-point'] }).length) return;
+        const p = e.features[0].properties;
+        const box = document.createElement('div');
+        box.style.cssText = 'font-size:12px;max-width:230px';
+        const title = document.createElement('strong');
+        title.textContent = `${String(p.level).replace('_', ' ').toUpperCase()} predicted risk`;
+        const lines = [
+          p.name ? `Near ${p.name}` : null,
+          `${p.relativeRisk}× the average incident location`,
+          `${p.pastIncidents} past incident(s), ${p.pastFatal} fatal`,
+          `Risk index ${p.riskIndex}/100`,
+        ].filter(Boolean).map(t => { const d = document.createElement('div'); d.textContent = t; return d; });
+        box.append(title, ...lines);
+        new maplibregl.Popup({ offset: 6 }).setLngLat(e.lngLat).setDOMContent(box).addTo(map);
+      });
+
       // Handle interactive point clicks (Mapbox-style popups)
       map.on('click', 'accidents-point', (e) => {
         const coordinates = e.features[0].geometry.coordinates.slice();
@@ -709,6 +739,34 @@
       if (map.getLayer('accidents-point')) {
         map.setLayoutProperty('accidents-point', 'visibility', heatOn ? 'none' : 'visible');
       }
+    });
+
+    let riskLoaded = false;
+    document.getElementById('toggle-risk')?.addEventListener('change', async e => {
+      const on = e.target.checked;
+      const legend = document.getElementById('risk-legend');
+      if (legend) legend.classList.toggle('on', on);
+      if (!map || !isMapLoaded || !map.getLayer('risk-grid-fill')) return;
+      if (on && !riskLoaded) {
+        try {
+          const res = await fetch(`${API_BASE}/api/risk/grid?minLevel=medium`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const grid = await res.json();
+          map.getSource('risk-grid').setData({ type: 'FeatureCollection', features: grid.features });
+          const note = document.getElementById('risk-note');
+          const cv = grid.model?.metrics?.crossValidation;
+          if (note && cv) {
+            note.textContent = `Poisson model · 500 m cells · ${grid.model.nIncidents} incidents. Top 10% of cells held ${Math.round(cv.model.hit10 * 100)}% of held-out incidents.`;
+            note.title = grid.model.metrics.explanation || '';
+          }
+          riskLoaded = true;
+        } catch (err) {
+          console.warn('[BAT] Risk grid unavailable:', err);
+          const note = document.getElementById('risk-note');
+          if (note) note.textContent = 'Risk prediction is unavailable (is the API server running?).';
+        }
+      }
+      map.setLayoutProperty('risk-grid-fill', 'visibility', on ? 'visible' : 'none');
     });
 
     document.getElementById('detail-panel-close')?.addEventListener('click', closeDetail);

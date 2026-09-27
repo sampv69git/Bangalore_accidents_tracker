@@ -7,9 +7,10 @@
   <meta name="description" content="Accident trends and analytics for Bangalore: monthly trends, severity breakdowns, area comparisons and time-of-day patterns.">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/ai.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
-    .trends-page { padding: calc(65px + var(--space-xl)) var(--space-xl) var(--space-2xl); max-width:1200px; margin:0 auto; }
+    .trends-page { padding: calc(var(--app-top, 65px) + var(--space-xl)) var(--space-xl) var(--space-2xl); max-width:1200px; margin:0 auto; }
     .grid { display: grid; grid-template-columns: 1fr 420px; gap: var(--space-lg); align-items:start; }
     .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
     .card { background: var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-lg); padding:var(--space-md); }
@@ -23,30 +24,34 @@
     .heatmap-label { font-size: 11px; color: var(--text-muted); display:flex; align-items:center; justify-content:flex-end; padding-right:4px; }
     .heatmap-hour-label { font-size: 10px; color: var(--text-muted); text-align:center; }
   </style>
+  <link rel="stylesheet" href="css/sidebar.css">
 </head>
 <body>
 
   <!-- Navigation (reuse simple nav) -->
-  <nav class="navbar" id="main-nav">
-    <a href="index.html" class="nav-logo"><img src="logo.png" alt="BAT Logo" style="height:44px"></a>
-    <ul class="nav-links" id="nav-links">
-      <li><a href="index.html" class="nav-link">Home</a></li>
-      <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
-      <li><a href="trends.html" class="nav-link active">Trends</a></li>
-      <li><a href="hospital.html" class="nav-link">Hospital</a></li>
-      <li><a href="report.html" class="nav-link">Report Accident</a></li>
-      <li><a href="civic.html" class="nav-link">Civic Action</a></li>
-      <li><a href="emergency.html" class="nav-link" style="color:#b91c1c;font-weight:800">SOS</a></li>
-    </ul>
-    <div class="nav-auth" id="nav-auth-links"></div>
-    <div class="nav-toggle" id="nav-toggle"><span></span><span></span><span></span></div>
-  </nav>
+  <script src="js/sidebar.js"></script>
 
   <main class="trends-page">
     <div class="section-head">
       <h2 class="section-title">Trends & Analytics</h2>
       <p class="section-subtitle">Aggregated accident trends: monthly timelines, severity breakdowns, area comparisons and time-of-day patterns.</p>
     </div>
+
+    <!-- AI weekly digest (GET /api/digest): facts computed from data, prose by a free LLM, numbers verified -->
+    <section class="digest-card" id="digest-card" aria-live="polite">
+      <div class="digest-top">
+        <span class="digest-kicker" id="digest-kicker">Road-safety digest</span>
+        <div class="digest-toggle" role="group" aria-label="Digest period">
+          <button type="button" data-period="week" aria-pressed="true">Weekly</button>
+          <button type="button" data-period="month" aria-pressed="false">Monthly</button>
+        </div>
+      </div>
+      <h3 id="digest-headline">Loading digest…</h3>
+      <p id="digest-summary"></p>
+      <ul class="digest-bullets" id="digest-bullets"></ul>
+      <p class="digest-advice" id="digest-advice" hidden></p>
+      <p class="digest-meta" id="digest-meta"></p>
+    </section>
 
     <div class="grid">
       <div>
@@ -114,11 +119,13 @@
   </footer>
 
   <script src="js/bat-config.js"></script>
+  <script src="js/sos-button.js"></script>
   <script src="js/db.js"></script>
   <script type="module" src="js/supabase-auth.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/ai-common.js"></script>
+  <script src="js/digest-app.js"></script>
   <script src="js/trends-app.js" type="module"></script>
-  <script src="js/nav-active.js"></script>
   <script src="js/page-effects.js"></script>
   <script src="js/pwa.js"></script>
   <script src="js/i18n.js"></script>

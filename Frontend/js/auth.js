@@ -242,16 +242,19 @@
    */
   function renderLoggedIn(container, user) {
     var name = (user.user_metadata && user.user_metadata.name) || user.email || 'U';
-    var initial = name.charAt(0).toUpperCase();
-    var displayName = name.split(' ')[0];
+    var initial = escapeHtml(name.charAt(0).toUpperCase());
+    var displayName = escapeHtml(name.split(' ')[0]);
+    var email = escapeHtml(user.email || 'View profile');
 
     container.innerHTML =
-      '<div style="display: flex; gap: 12px; align-items: center;">' +
-        '<a href="profile.html" class="nav-link" style="display: flex; align-items: center; gap: 8px; text-decoration: none;">' +
-          '<span class="nav-avatar">' + escapeHtml(initial) + '</span>' +
-          '<span>' + escapeHtml(displayName) + '</span>' +
+      '<div class="nav-user">' +
+        '<a href="profile.html" class="nav-user-link" data-label="My Profile">' +
+          '<span class="nav-avatar">' + initial + '</span>' +
+          '<span class="nav-user-meta"><strong>' + displayName + '</strong><small>' + email + '</small></span>' +
         '</a>' +
-        '<a href="#" class="btn btn-outline btn-sm" id="logout-btn">Logout</a>' +
+        '<button type="button" class="nav-user-logout" id="logout-btn" aria-label="Log out" title="Log out">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>' +
+        '</button>' +
       '</div>';
 
     var logoutBtn = document.getElementById('logout-btn');
@@ -266,9 +269,12 @@
    */
   function renderLoggedOut(container) {
     container.innerHTML =
-      '<div style="display: flex; gap: 12px; align-items: center;">' +
-        '<a href="login.html" class="btn btn-outline btn-sm">Login</a>' +
-        '<a href="login.html?tab=register" class="btn btn-primary btn-sm">Sign Up</a>' +
+      '<div class="nav-guest">' +
+        '<a href="login.html" class="nav-guest-login" data-label="Login">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/></svg>' +
+          '<span>Login</span>' +
+        '</a>' +
+        '<a href="login.html?tab=register" class="nav-guest-signup">Sign Up</a>' +
       '</div>';
   }
 

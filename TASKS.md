@@ -120,15 +120,23 @@
   - **Note:** Full WCAG compliance needs manual testing with assistive tech; document what was validated.
 
 ### 5. Emergency SOS Frontend (`Frontend/emergency.html` + `js/emergency-app.js`)
-- [ ] Prominent **SOS / Emergency** button on `dashboard.html` and `index.html` that opens the emergency flow.
-- [ ] Full-screen capture page: camera input (`capture="environment"`) + photo preview + retake.
-- [ ] Capture GPS via `navigator.geolocation`; show accuracy, allow retry, handle permission denial.
-- [ ] Upload photo to Supabase Storage, then `POST /api/emergency` with `{ photo_url, lat, lng }`.
-- [ ] Confirmation screen — nearest hospitals with distance, tap-to-call (`tel:`), tap-to-navigate (maps deep link).
-- [ ] Prominent **Call 108 (ambulance) / 112** quick-dial buttons, always visible.
-- [ ] Disclaimer: "This supplements, and does not replace, emergency services." Label AI severity as **estimated**.
-- [ ] Robust failure handling — if network drops mid-flow, immediately surface the 108/112 call buttons as fallback.
+- [x] Prominent **SOS / Emergency** button on `dashboard.html` and `index.html` that opens the emergency flow. *(floating SOS button on every page — `js/sos-button.js`)*
+- [x] Full-screen capture page: camera input (`capture="environment"`) + photo preview + retake.
+- [x] Capture GPS via `navigator.geolocation`; show accuracy, allow retry, handle permission denial. *(plus draggable pin / tap-to-place)*
+- [x] ~~Upload photo to Supabase Storage, then `POST /api/emergency`~~ → the SOS is sent first (no waiting on uploads), then the photo goes to `POST /api/emergency/:id/photo` and is stored privately (victims may be identifiable). The old `{ photo_url, lat, lng }` contract still works.
+- [x] Confirmation screen — nearest hospitals with distance, tap-to-call (`tel:`), tap-to-navigate (maps deep link). *(→ `track.html`: live status, ambulance on map, ETA, first aid)*
+- [x] Prominent **Call 108 (ambulance) / 112** quick-dial buttons, always visible.
+- [x] Disclaimer: "This supplements, and does not replace, emergency services." Label AI severity as **estimated**.
+- [x] Robust failure handling — if network drops mid-flow, immediately surface the 108/112 call buttons as fallback.
 - **Acceptance:** Full flow works on a phone; if the API fails, emergency call buttons are still one tap away.
+
+### 5b. Emergency response v2 (done — see `server/emergency/README.md`)
+- [x] Hospital IDs no longer collide (1,155 → 1,370 distinct OSM hospitals); facilities classified as trauma / emergency / general / none.
+- [x] Hospital accounts linked to their hospital (`hospital_users`), sessions verified with Supabase.
+- [x] Dispatch lifecycle new → accepted → dispatched → on scene → transporting → closed; first hospital to accept wins; 90 s escalation rounds.
+- [x] Drive-time ranking (OSRM), ER status (accepting / busy / diverting), live ambulance GPS + crew links, real-time updates (SSE) with sound/notifications.
+- [x] Bystander triage → priority, first-aid guidance, duplicate-report merging, rate limits.
+- [x] `coverage.html`: ambulance-desert map + golden-hour response metrics; `npm run simulate:emergencies` for drill data.
 
 ### 6. Tests (`Frontend/js/__tests__/`)
 - [ ] `url-filters.test.js` — filter parse/serialize round-trip.

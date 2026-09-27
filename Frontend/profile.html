@@ -12,7 +12,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     .profile-page {
-      padding: calc(65px + var(--space-xl)) var(--space-xl) var(--space-xl);
+      padding: calc(var(--app-top, 65px) + var(--space-xl)) var(--space-xl) var(--space-xl);
     }
     .profile-layout {
       display: grid;
@@ -29,7 +29,7 @@
       padding: var(--space-xl);
       text-align: center;
       position: sticky;
-      top: calc(65px + var(--space-lg));
+      top: calc(var(--app-top, 65px) + var(--space-lg));
     }
     .profile-avatar {
       width: 80px; height: 80px;
@@ -198,32 +198,16 @@
       .profile-card { position: relative; top: auto; }
     }
     @media (max-width: 768px) {
-      .profile-page { padding: calc(65px + var(--space-md)) var(--space-md) var(--space-md); }
+      .profile-page { padding: calc(var(--app-top, 65px) + var(--space-md)) var(--space-md) var(--space-md); }
       .report-meta { grid-template-columns: 1fr 1fr; }
     }
   </style>
+  <link rel="stylesheet" href="css/sidebar.css">
 </head>
 <body>
 
 <!-- ── Navigation ── -->
-<nav class="navbar scrolled" id="main-nav">
-  <a href="index.html" class="nav-logo">
-    <img src="logo.png" alt="BAT Logo" style="height: 48px; width: auto; object-fit: contain;">
-    
-  </a>
-  <ul class="nav-links" id="nav-links">
-    <li><a href="index.html" class="nav-link">Home</a></li>
-    <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
-    <li><a href="trends.html" class="nav-link">Trends</a></li>
-    <li><a href="hospital.html" class="nav-link">Hospital</a></li>
-    <li><a href="report.html" class="nav-link">Report Accident</a></li>
-    <li><a href="profile.html" class="nav-link active">My Profile</a></li>
-    <li><a href="civic.html" class="nav-link">Civic Action</a></li>
-    <li><a href="emergency.html" class="nav-link" style="color:#b91c1c;font-weight:800">SOS</a></li>
-  </ul>
-  <div class="nav-auth" id="nav-auth-links"></div>
-  <div class="nav-toggle" id="nav-toggle"><span></span><span></span><span></span></div>
-</nav>
+<script src="js/sidebar.js"></script>
 
 <div class="profile-page" id="page-content"></div>
 
@@ -240,17 +224,12 @@
   </footer>
 
 <script src="js/bat-config.js"></script>
+<script src="js/sos-button.js"></script>
 <script src="js/db.js"></script>
 <script type="module" src="js/supabase-auth.js"></script>
 <script src="js/auth.js"></script>
 <script>
   window.Auth.updateNavAuth();
-  document.getElementById('nav-toggle').addEventListener('click', () => {
-    document.getElementById('nav-links').classList.toggle('open');
-  });
-
-  // Ensure nav active class set correctly
-  (function(){ try { var s = document.createElement('script'); s.src='js/nav-active.js'; document.body.appendChild(s); } catch (e) {} })();
 
   // Role Guard: require authenticated Supabase session (Req 3.6, 8.5)
   (async function() {

@@ -280,6 +280,9 @@ $$;
 COMMENT ON FUNCTION find_duplicates IS 'Return nearby accidents within radius in meters that share the same accident_date as the target id';
 
 -- ─── Hospitals & Emergency Alerts ────────────────────────────────────────
+-- Base tables only. Emergency capability, hospital accounts, the dispatch
+-- lifecycle, escalation and live tracking are added by Database/emergency.sql
+-- (applied automatically by the API on startup).
 
 CREATE TABLE IF NOT EXISTS hospitals (
   id TEXT PRIMARY KEY,
@@ -502,3 +505,14 @@ USING (
     OR auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
   )
 );
+-- ─── AI features: report integrity (duplicate / spam / fake-image checks) ──────
+-- Optional: the API also keeps these results in server/.cache/integrity.json, so
+-- everything works before this runs. Running it lets results live in the database.
+
+ALTER TABLE accidents ADD COLUMN IF NOT EXISTS integrity JSONB;
+ALTER TABLE accidents ADD COLUMN IF NOT EXISTS image_phash TEXT;
+
+CREATE INDEX IF NOT EXISTS accidents_image_phash_ix ON accidents (image_phash);
+
+COMMENT ON COLUMN accidents.integrity IS 'Latest automated integrity check (semantic duplicates, spam score, photo forensics) — decision support for moderators';
+COMMENT ON COLUMN accidents.image_phash IS '64-bit perceptual difference hash (hex) of the proof photo, used to spot the same photo reused across reports';

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Safe Route — Bangalore Accidents Tracker</title>
+  <meta name="description" content="Compare driving routes across Bengaluru by their history of reported accidents and predicted risk, and pick a safer alternative.">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/ai.css">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="css/sidebar.css">
+</head>
+<body>
+
+  <script src="js/sidebar.js"></script>
+
+  <main class="ai-page" style="max-width:1280px">
+    <header class="ai-head">
+      <h1 class="ai-title">Safe Route</h1>
+      <p class="ai-sub">Compare routes by the accidents reported along them and the model's predicted risk. The safest route that isn't a big detour is recommended.</p>
+    </header>
+
+    <div class="route-layout">
+      <section class="route-panel" aria-label="Route planner">
+        <form id="route-form" autocomplete="off">
+          <label for="from-input">From</label>
+          <div class="route-field">
+            <input id="from-input" type="text" placeholder="e.g. Koramangala" required>
+            <button class="icon-btn" type="button" id="use-location" title="Use my current location">📍 Me</button>
+          </div>
+          <label for="to-input" style="display:block;margin-top:10px">To</label>
+          <div class="route-field">
+            <input id="to-input" type="text" placeholder="e.g. Whitefield" required>
+            <button class="icon-btn" type="button" id="swap-btn" title="Swap start and destination">⇅</button>
+          </div>
+          <p class="route-hint">Type a place in Bengaluru, or click the map to set the start and then the destination.</p>
+          <button class="btn btn-primary" id="route-btn" type="submit" style="width:100%;margin-top:6px">Find safer route</button>
+        </form>
+
+        <label class="route-hint" style="display:flex;gap:6px;align-items:center;font-weight:500">
+          <input type="checkbox" id="toggle-risk"> Show predicted risk hotspots
+        </label>
+
+        <div id="route-status" class="route-hint" aria-live="polite"></div>
+        <div id="route-results" style="display:flex;flex-direction:column;gap:10px"></div>
+        <p class="route-disclaimer" id="route-disclaimer">Based on reported historical incidents only. It does not include live traffic, road works or weather. Routing by OSRM and place search by OpenStreetMap Nominatim (both free).</p>
+      </section>
+
+      <div id="route-map" role="application" aria-label="Route map"></div>
+    </div>
+  </main>
+
+  <script src="js/bat-config.js"></script>
+  <script src="js/sos-button.js"></script>
+  <script src="js/db.js"></script>
+  <script type="module" src="js/supabase-auth.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ai-common.js"></script>
+  <script src="js/safe-route-app.js"></script>
+</body>
+</html>
