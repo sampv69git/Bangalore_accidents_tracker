@@ -59,7 +59,7 @@
 .sos-fab {
   position: fixed; right: 20px; bottom: 22px; z-index: 950;
   display: flex; align-items: center; gap: 8px;
-  padding: 14px 20px; border-radius: var(--radius-full);
+  padding: 14px 20px; border-radius: var(--radius-full, 999px);
   background: var(--emg-red); color: #fff !important; font-weight: 900; letter-spacing: 0.04em;
   box-shadow: 0 10px 30px rgba(220, 38, 38, 0.45);
   text-decoration: none;
@@ -67,7 +67,7 @@
 }
 .sos-fab:hover { background: var(--emg-red-dark); }
 .sos-fab .sos-fab-sub { font-weight: 600; font-size: 12px; letter-spacing: 0; opacity: 0.9; }
-.sos-fab--active { background: var(--color-primary); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35); animation: none; }
+.sos-fab--active { background: var(--color-primary, #0f172a); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35); animation: none; }
 @keyframes sos-pulse { 0%, 100% { box-shadow: 0 10px 30px rgba(220, 38, 38, 0.45); } 50% { box-shadow: 0 10px 30px rgba(220, 38, 38, 0.45), 0 0 0 10px rgba(220, 38, 38, 0.12); } }
 @media (prefers-reduced-motion: reduce) { .sos-fab { animation: none; } }
 

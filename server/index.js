@@ -219,10 +219,12 @@ async function validateJwt(req, res, next) {
   const token = auth.slice(7);
 
   // Local/offline dev fallback tokens created in the browser when Supabase is
-  // unreachable. These tokens are intentionally not JWTs, but they are valid for
-  // local testing and for fresh-clone workflows where the Supabase backend is
-  // not reachable yet.
+  // unreachable. These tokens are intentionally not JWTs and carry no proof of
+  // identity, so they are honoured only when this server has no Supabase
+  // configured (fresh-clone / offline dev). With Supabase they would let anyone
+  // act as any user id.
   if (token.startsWith('devtoken_')) {
+    if (supabase) return res.status(401).json({ error: 'Authentication failed' });
     const userId = token.slice('devtoken_'.length) || 'anonymous-dev-user';
     req.jwtPayload = {
       sub: userId,
@@ -646,10 +648,24 @@ app.get('/api/risk/hotspots', limiterPublic, async (req, res) => {
 });
 
 // ── Civic action tracker and near-miss signals ────────────────────────────
+// Uses the direct Postgres pool when DATABASE_URL is set, else Supabase REST.
+const CIVIC_COLUMNS = 'id, type, title, description, area, lat, lng, status, action_note, created_at, updated_at';
+const CIVIC_STATUS_ORDER = { open: 0, in_progress: 1, resolved: 2 };
+
 app.get('/api/civic/issues', limiterPublic, async (_req, res) => {
   try {
-    const rows = await q(`SELECT id, type, title, description, area, lat, lng, status, action_note, created_at, updated_at
-                          FROM civic_issues ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, created_at DESC LIMIT 200`);
+    let rows;
+    if (pool) {
+      rows = await q(`SELECT ${CIVIC_COLUMNS} FROM civic_issues
+                      ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, created_at DESC LIMIT 200`);
+    } else if (supabase) {
+      const { data, error } = await supabase.from('civic_issues').select(CIVIC_COLUMNS)
+        .order('created_at', { ascending: false }).limit(200);
+      if (error) throw new Error(error.message);
+      rows = (data || []).sort((a, b) => (CIVIC_STATUS_ORDER[a.status] ?? 3) - (CIVIC_STATUS_ORDER[b.status] ?? 3));
+    } else {
+      throw new Error('No database configured');
+    }
     res.json(rows || []);
   } catch (e) {
     console.error('/api/civic/issues error:', e.message);
@@ -665,10 +681,20 @@ app.post('/api/civic/issues', limiterContributions, validateJwt, async (req, res
   const latN = Number(lat), lngN = Number(lng);
   if (!Number.isFinite(latN) || !Number.isFinite(lngN) || latN < 12.5 || latN > 13.5 || lngN < 77 || lngN > 78.2) return res.status(400).json({ error: 'A valid Bangalore location is required' });
   try {
-    const id = `civ_${crypto.randomUUID()}`;
-    await q(`INSERT INTO civic_issues (id, type, title, description, area, lat, lng, reporter_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [id, type, String(title).trim(), String(description).trim(), String(area || '').trim() || null, latN, lngN, req.jwtPayload.sub]);
-    res.status(201).json({ id, status: 'open' });
+    const row = {
+      id: `civ_${crypto.randomUUID()}`, type, title: String(title).trim(), description: String(description).trim(),
+      area: String(area || '').trim() || null, lat: latN, lng: lngN, reporter_id: req.jwtPayload.sub,
+    };
+    if (pool) {
+      await q(`INSERT INTO civic_issues (id, type, title, description, area, lat, lng, reporter_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [row.id, row.type, row.title, row.description, row.area, row.lat, row.lng, row.reporter_id]);
+    } else if (supabase) {
+      const { error } = await supabase.from('civic_issues').insert(row);
+      if (error) throw new Error(error.message);
+    } else {
+      throw new Error('No database configured');
+    }
+    res.status(201).json({ id: row.id, status: 'open' });
   } catch (e) {
     console.error('/api/civic/issues POST error:', e.message);
     res.status(500).json({ error: 'Could not create civic issue' });
@@ -679,11 +705,25 @@ app.patch('/api/civic/issues/:id', adminAuth, async (req, res) => {
   const { status, action_note } = req.body || {};
   if (!['open', 'in_progress', 'resolved'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
   try {
-    const rows = await q(`UPDATE civic_issues SET status = $2, action_note = $3, updated_at = now() WHERE id = $1
-                          RETURNING id, status, action_note, updated_at`, [req.params.id, status, action_note || null]);
+    let rows;
+    if (pool) {
+      rows = await q(`UPDATE civic_issues SET status = $2, action_note = $3, updated_at = now() WHERE id = $1
+                      RETURNING id, status, action_note, updated_at`, [req.params.id, status, action_note || null]);
+    } else if (supabase) {
+      const { data, error } = await supabase.from('civic_issues')
+        .update({ status, action_note: action_note || null, updated_at: new Date().toISOString() })
+        .eq('id', req.params.id).select('id, status, action_note, updated_at');
+      if (error) throw new Error(error.message);
+      rows = data || [];
+    } else {
+      throw new Error('No database configured');
+    }
     if (!rows.length) return res.status(404).json({ error: 'Issue not found' });
     res.json(rows[0]);
-  } catch (e) { res.status(500).json({ error: 'Could not update civic issue' }); }
+  } catch (e) {
+    console.error('/api/civic/issues PATCH error:', e.message);
+    res.status(500).json({ error: 'Could not update civic issue' });
+  }
 });
 
 // Export current filters as GeoJSON file
@@ -773,16 +813,7 @@ app.post('/api/reports', limiterContributions, validateJwt, async (req, res) => 
     // (get_stats_by_time, Ask BAT, risk-by-hour) can use it.
     const timeOfDay = typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time.trim()) ? time.trim() : null;
 
-    let nextId = `rpt_${Date.now()}`;
-    if (supabase) {
-      try {
-        const { data: maxRows } = await supabase.from('accidents').select('id').order('id', { ascending: false }).limit(1);
-        if (maxRows && maxRows.length) {
-          const maxIdNum = parseInt(maxRows[0].id, 10);
-          if (!Number.isNaN(maxIdNum)) nextId = (maxIdNum + 1).toString();
-        }
-      } catch { }
-    }
+    const nextId = await nextAccidentId(`rpt_${Date.now()}`);
 
     const wkt = `SRID=4326;POINT(${lng} ${lat})`;
     const newRecord = {
@@ -826,6 +857,7 @@ app.post('/api/reports', limiterContributions, validateJwt, async (req, res) => 
           description: newRecord.description,
           proof_url: newRecord.proof_url
         });
+        if (insErr) console.error('Supabase report insert error:', insErr.message);
         if (!insErr) {
           saved = true;
           // PostgREST can't accept raw PostGIS WKT for a `geometry` column via
@@ -1274,11 +1306,17 @@ app.get('/api/admin/accidents/:id/duplicates', adminAuth, async (req, res) => {
     const lng = req.query.lng ? parseFloat(req.query.lng) : null;
     const date = req.query.date || null; // optional YYYY-MM-DD
     let data;
-    if (!isNaN(lat) && !isNaN(lng)) {
-      const p_date = date ? date : null;
-      data = await rpcResult(`SELECT find_duplicates_by_point($1::double precision, $2::double precision, $3::float, $4::date) AS result`, [lat, lng, 100, p_date]);
-    } else {
-      data = await rpcResult(`SELECT find_duplicates($1::text, $2::float) AS result`, [id, 100]);
+    const byPoint = lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
+    if (pool) {
+      data = byPoint
+        ? await rpcResult(`SELECT find_duplicates_by_point($1::double precision, $2::double precision, $3::float, $4::date) AS result`, [lat, lng, 100, date || null])
+        : await rpcResult(`SELECT find_duplicates($1::text, $2::float) AS result`, [id, 100]);
+    } else if (supabase) {
+      const { data: rows, error } = byPoint
+        ? await supabase.rpc('find_duplicates_by_point', { p_lat: lat, p_lng: lng, p_radius_m: 100, p_date: date || null })
+        : await supabase.rpc('find_duplicates', { p_id: id, p_radius_m: 100 });
+      if (error) throw new Error(error.message);
+      data = rows;
     }
     res.json(data || []);
   } catch (e) {
@@ -1323,18 +1361,7 @@ app.post('/api/admin/accidents', adminAuth, async (req, res) => {
       lng = coords.lng;
     }
 
-    let nextId;
-    try {
-      const maxRows = await q(`SELECT id FROM accidents ORDER BY id DESC LIMIT 1`);
-      if (maxRows?.length) {
-        const maxIdNum = parseInt(maxRows[0].id, 10);
-        nextId = Number.isNaN(maxIdNum) ? `art_${Date.now()}` : (maxIdNum + 1).toString();
-      } else {
-        nextId = `art_${Date.now()}`;
-      }
-    } catch {
-      nextId = `art_${Date.now()}`;
-    }
+    const nextId = await nextAccidentId(`art_${Date.now()}`);
 
     const wkt = lat && lng ? `SRID=4326;POINT(${lng} ${lat})` : null;
     const newRecord = {
@@ -1353,11 +1380,24 @@ app.post('/api/admin/accidents', adminAuth, async (req, res) => {
       geom: wkt
     };
 
-    await q(
-      `INSERT INTO accidents (id, title, source, link, location, area, zone, severity, score, date_raw, accident_date, has_coords, geom)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::geometry)`,
-      [newRecord.id, newRecord.title, newRecord.source, newRecord.link, newRecord.location, newRecord.area, newRecord.zone, newRecord.severity, newRecord.score, newRecord.date_raw, newRecord.accident_date, newRecord.has_coords, newRecord.geom]
-    );
+    if (pool) {
+      await q(
+        `INSERT INTO accidents (id, title, source, link, location, area, zone, severity, score, date_raw, accident_date, has_coords, geom)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::geometry)`,
+        [newRecord.id, newRecord.title, newRecord.source, newRecord.link, newRecord.location, newRecord.area, newRecord.zone, newRecord.severity, newRecord.score, newRecord.date_raw, newRecord.accident_date, newRecord.has_coords, newRecord.geom]
+      );
+    } else if (supabase) {
+      const { geom, ...row } = newRecord;
+      const { error } = await supabase.from('accidents').insert(row);
+      if (error) throw new Error(error.message);
+      // PostgREST can't take PostGIS WKT in a JSON insert; set the pin via RPC.
+      if (lat != null && lng != null) {
+        const { error: geomErr } = await supabase.rpc('set_accident_geom', { p_id: newRecord.id, p_lat: lat, p_lng: lng });
+        if (geomErr) console.error('set_accident_geom RPC error:', geomErr.message);
+      }
+    } else {
+      throw new Error('No database configured');
+    }
 
     syncNewToJson({ id: nextId, title: finalTitle, source: finalSource, link, location: newRecord.location, area: newRecord.area, lat, lng, score: newRecord.score, severity: newRecord.severity, date: extracted.date, hasCoords: newRecord.has_coords });
     res.json({ ok: true, id: nextId });
@@ -1368,6 +1408,26 @@ app.post('/api/admin/accidents', adminAuth, async (req, res) => {
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Next numeric accident id. Ids are TEXT, so they must be compared as numbers:
+ * sorting as strings puts "99" above "684" and hands out an id that exists.
+ */
+async function nextAccidentId(fallback) {
+  try {
+    let ids = [];
+    if (pool) {
+      ids = (await q(`SELECT id FROM accidents WHERE id ~ '^[0-9]+$'`)).map(r => r.id);
+    } else if (supabase) {
+      const { data, error } = await supabase.from('accidents').select('id').range(0, 99999);
+      if (!error && data) ids = data.map(r => r.id);
+    }
+    const max = Math.max(0, ...ids.map(v => (/^\d+$/.test(v) ? parseInt(v, 10) : 0)));
+    return max > 0 ? String(max + 1) : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 function inferZone(area) {
   const s = String(area || '').toLowerCase();

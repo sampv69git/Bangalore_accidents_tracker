@@ -159,6 +159,17 @@ body.has-appnav {
 .app-sidebar-link:hover::before { height: 18px; opacity: 0.55; }
 .app-sidebar-link:active { transform: scale(0.985); }
 
+/* Language switcher (added by js/i18n.js) — a <button> styled like the links */
+.app-sidebar-lang {
+  width: 100%;
+  margin-top: 6px;
+  background: none;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .app-sidebar-link:focus-visible {
   outline: 2px solid var(--appnav-accent);
   outline-offset: 2px;

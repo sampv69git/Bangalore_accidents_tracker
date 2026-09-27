@@ -41,6 +41,7 @@ import { createCoverageService } from './coverage.mjs';
 import { computeResponseMetrics } from './metrics.mjs';
 import { createPgStore } from './store-pg.mjs';
 import { createMemoryStore } from './store-memory.mjs';
+import { createSupabaseStore } from './store-supabase.mjs';
 import { fromSeedRow, dedupeHospitals, EMERGENCY_LEVELS } from './hospitals.mjs';
 import { HttpError, hashToken, cleanText, cleanPhone } from './util.mjs';
 
@@ -124,8 +125,11 @@ export function createEmergencyFeatures({
   verifyUser = null, userDirectory = null, router = null, store: injectedStore = null, now = () => new Date(), config = {}, limits = {},
 } = {}) {
   const memory = () => createMemoryStore({ hospitals: loadSeedHospitals(hospitalsJsonPath), now });
-  const holder = { current: injectedStore || (pool ? createPgStore({ pool, logger }) : memory()) };
-  // Delegate to whichever store is active (Postgres, or memory if the DB is unreachable at startup).
+  // Direct Postgres when DATABASE_URL is set; otherwise Supabase over REST when the
+  // service key is available; in-memory only for tests / fully offline dev.
+  const supabaseStore = () => createSupabaseStore({ supabase, hospitals: loadSeedHospitals(hospitalsJsonPath), logger, now });
+  const holder = { current: injectedStore || (pool ? createPgStore({ pool, logger }) : supabase ? supabaseStore() : memory()) };
+  // Delegate to whichever store is active (Postgres, or a fallback if the DB is unreachable at startup).
   const store = new Proxy({}, { get: (_, k) => holder.current[k] });
   const bus = createBus();
   const routing = router || createRouter({ logger, now });
@@ -141,8 +145,8 @@ export function createEmergencyFeatures({
         await holder.current.ready();
         await pool.query('SELECT 1 FROM hospitals LIMIT 1');
       } catch (e) {
-        logger.warn?.('[emergency] Postgres unavailable, using in-memory store (alerts are not persisted):', e.message);
-        holder.current = memory();
+        logger.warn?.(`[emergency] Postgres unavailable, using ${supabase ? 'Supabase REST' : 'in-memory'} store:`, e.message);
+        holder.current = supabase ? supabaseStore() : memory();
       }
     }
     await holder.current.ready();

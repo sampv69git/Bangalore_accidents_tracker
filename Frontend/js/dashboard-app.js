@@ -643,7 +643,7 @@
       const response = await fetch(`${API_BASE}/api/risk/hotspots?hour=${new Date().getHours()}`, { cache: 'no-store' });
       const data = await response.json(); if (!response.ok) throw new Error(data.error);
       note.textContent = data.methodology || 'Historical risk indicators.';
-      list.innerHTML = (data.hotspots || []).slice(0, 4).map(item => `<li class="hotspot-item"><span class="hotspot-rank" style="background:${item.risk_level === 'high' ? '#dc2626' : item.risk_level === 'medium' ? '#d97706' : '#0ea5a4'}">${item.risk_score}</span><span class="hotspot-info"><b>${esc(item.area)}</b><small>${esc(item.factors[0] || 'Historical incident concentration')}</small></span></li>`).join('') || '<li class="hotspot-empty">No risk data available.</li>';
+      list.innerHTML = (data.hotspots || []).slice(0, 4).map(item => `<li class="hotspot-item"><div class="h-rank" style="width:30px;height:30px;color:#fff;background:${item.risk_level === 'high' ? '#dc2626' : item.risk_level === 'medium' ? '#d97706' : '#0ea5a4'}">${item.risk_score}</div><div class="h-info"><div class="h-name">${esc(item.area)}</div><div class="h-dots">${esc(item.factors[0] || 'Historical incident concentration')}</div></div></li>`).join('') || '<li class="hotspot-empty">No risk data available.</li>';
     } catch (error) { list.innerHTML = '<li class="hotspot-empty">Risk outlook unavailable offline.</li>'; }
   }
 

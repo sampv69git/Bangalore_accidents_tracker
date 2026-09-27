@@ -169,3 +169,12 @@ AS $$
 $$;
 
 COMMENT ON FUNCTION get_nearest_hospitals IS 'Return nearest hospitals ordered by distance (km), with emergency capability and ER status';
+
+-- ─── Row Level Security ──────────────────────────────────────────────────────
+-- These tables hold reporter tokens, phone numbers and scene photos. The API
+-- connects as the database owner (bypasses RLS); with RLS on and no policies,
+-- the public anon / authenticated REST roles cannot read or write them.
+ALTER TABLE hospital_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE emergency_alert_targets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE emergency_alert_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE emergency_alert_photos ENABLE ROW LEVEL SECURITY;

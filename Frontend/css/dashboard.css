@@ -705,7 +705,7 @@ button { font-family: inherit; cursor: pointer; }
     max-height: 55vh;
   }
 
-  .map-area { height: 60vh; flex-shrink: 0; }
+  .map-area { flex: 0 0 auto; height: 60vh; }
 }
 
 @media (max-width: 480px) {

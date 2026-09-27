@@ -8,6 +8,7 @@
   <meta name="description" content="Login or register to submit accident reports and track your contributions to Bangalore road safety.">
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/auth.css">
+  <link rel="icon" type="image/png" href="logo-mark.png">
 </head>
 <body>
 
@@ -63,7 +64,7 @@
             <div class="password-wrapper input-icon-wrapper">
               <span class="input-icon"></span>
               <input type="password" class="form-control" id="login-password" placeholder="Your password" autocomplete="current-password" required>
-              <button type="button" class="password-toggle" id="pw-toggle-login" title="Show/hide password"></button>
+              <button type="button" class="password-toggle" id="pw-toggle-login" title="Show/hide password" aria-label="Show or hide password"></button>
             </div>
             <div class="form-error" id="login-pw-err"></div>
           </div>
@@ -109,7 +110,7 @@
             <div class="password-wrapper input-icon-wrapper">
               <span class="input-icon"></span>
               <input type="password" class="form-control" id="reg-password" placeholder="At least 6 characters" autocomplete="new-password" required minlength="6">
-              <button type="button" class="password-toggle" id="pw-toggle-reg" title="Show/hide password"></button>
+              <button type="button" class="password-toggle" id="pw-toggle-reg" title="Show/hide password" aria-label="Show or hide password"></button>
             </div>
             <div class="form-error" id="reg-pw-err"></div>
           </div>
