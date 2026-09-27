@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Emergency Coverage — Bangalore Accidents Tracker</title>
+  <meta name="description" content="How quickly can an ambulance reach Bengaluru's accident hotspots? Drive-time coverage from emergency hospitals, underserved areas, and SOS response-time (golden hour) metrics.">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/emergency.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* Chart roles (validated ordinal ramp + chart chrome from the data-viz reference palette). */
+    .viz-root {
+      --eta-1: #86b6ef; --eta-2: #3987e5; --eta-3: #1c5cab; --eta-4: #0d366b;
+      --series-1: #2a78d6; --grid: #e1e0d9; --axis-ink: #898781;
+    }
+    .cov-note { font-size: var(--font-size-xs); color: var(--text-muted); line-height: 1.6; margin-top: var(--space-sm); }
+    .data-details summary { cursor: pointer; font-weight: 700; font-size: var(--font-size-sm); margin-top: var(--space-sm); }
+    .data-details .table-wrap { max-height: 320px; overflow: auto; margin-top: var(--space-sm); }
+    .period-seg button[aria-pressed="true"] { background: var(--color-primary); color: #fff; }
+    .is-loading { opacity: 0.55; transition: opacity 150ms; }
+  </style>
+  <link rel="stylesheet" href="css/sidebar.css">
+</head>
+<body>
+  <script src="js/sidebar.js"></script>
+
+  <main class="hospital-page viz-root">
+    <div class="page-head">
+      <span class="page-eyebrow">Emergency Network</span>
+      <h1 class="page-title">Emergency coverage</h1>
+      <p class="page-sub">How quickly can an ambulance reach the places where Bengaluru's crashes happen — and how fast do SOS alerts actually get a response?</p>
+    </div>
+
+    <!-- ── Coverage (ambulance deserts) ─────────────────────────────────── -->
+    <h2 class="section-title">Drive time to the nearest emergency hospital</h2>
+    <p class="emg-sub" id="cov-sub">Every recorded accident is grouped into ~1 km cells; for each we compute the road drive time from the nearest hospital that can take accident victims.</p>
+    <div id="cov-status"></div>
+    <div class="kpi-grid" id="cov-kpis"></div>
+
+    <div class="cov-layout">
+      <div>
+        <div id="cov-map" class="cov-map" aria-label="Map of accident cells coloured by drive time from the nearest emergency hospital"></div>
+        <div class="legend" id="cov-legend" aria-label="Legend">
+          <strong>Drive time</strong>
+          <span><i style="background:var(--eta-1)"></i>≤ 10 min</span>
+          <span><i style="background:var(--eta-2)"></i>10–15 min</span>
+          <span><i style="background:var(--eta-3)"></i>15–20 min</span>
+          <span><i style="background:var(--eta-4)"></i>&gt; 20 min</span>
+          <span>· circle size = number of accidents</span>
+          <label class="check-row" style="margin-left:auto;"><input type="checkbox" id="show-hospitals"> Show trauma centres</label>
+        </div>
+        <p class="cov-note" id="cov-method"></p>
+        <details class="data-details">
+          <summary>Show all cells as a table</summary>
+          <div class="table-wrap"><table class="data-table" id="cov-table"></table></div>
+        </details>
+      </div>
+      <aside class="emg-card" style="margin:0;">
+        <h3>Most underserved hotspots</h3>
+        <p class="hint" style="margin-bottom:var(--space-sm);">Ranked by accident severity × minutes beyond a 10-minute response. Click to zoom.</p>
+        <ol class="desert-list" id="deserts"><li class="hint">Loading…</li></ol>
+      </aside>
+    </div>
+
+    <!-- ── Response metrics (golden hour) ───────────────────────────────── -->
+    <h2 class="section-title">SOS response times</h2>
+    <div class="toolbar-row" style="margin-bottom:var(--space-md);">
+      <div class="filter-row" style="margin:0;">
+        <div class="seg period-seg" id="period" role="group" aria-label="Period">
+          <button type="button" data-days="7" aria-pressed="false">Last 7 days</button>
+          <button type="button" data-days="30" aria-pressed="true">Last 30 days</button>
+          <button type="button" data-days="90" aria-pressed="false">Last 90 days</button>
+        </div>
+        <label class="check-row"><input type="checkbox" id="drills"> Include drill alerts</label>
+      </div>
+      <a class="cross-link" href="hospital.html">Hospital directory →</a>
+    </div>
+
+    <div id="metrics">
+      <div class="kpi-grid" id="m-kpis"></div>
+      <div class="chart-grid">
+        <div class="emg-card">
+          <h3>SOS alerts per day</h3>
+          <div class="chart-box"><canvas id="c-daily" aria-label="Column chart of SOS alerts per day"></canvas></div>
+          <details class="data-details"><summary>Show as table</summary><div class="table-wrap"><table class="data-table" id="t-daily"></table></div></details>
+        </div>
+        <div class="emg-card">
+          <h3>Median minutes from SOS to ambulance on scene, by hour</h3>
+          <div class="chart-box"><canvas id="c-hour" aria-label="Column chart of median minutes to scene by hour of day"></canvas></div>
+          <details class="data-details"><summary>Show as table</summary><div class="table-wrap"><table class="data-table" id="t-hour"></table></div></details>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="emg-card">
+          <h3>By zone</h3>
+          <table class="data-table" id="t-zone"></table>
+          <p class="cov-note">Zones are approximate: within 4 km of the city centre is Central, otherwise the compass direction.</p>
+        </div>
+        <div class="emg-card">
+          <h3>Responding hospitals</h3>
+          <table class="data-table" id="t-hosp"></table>
+          <h3 style="margin-top:var(--space-lg);">When alerts were accepted</h3>
+          <table class="data-table" id="t-round"></table>
+        </div>
+      </div>
+    </div>
+    <p class="disclaimer" style="margin-top:var(--space-lg);">Drive times use OpenStreetMap roads via OSRM with a daytime traffic allowance; they are estimates, not guarantees. Response metrics come from SOS alerts handled through BAT; drill (simulated) alerts are excluded unless selected.</p>
+  </main>
+
+  <footer>
+    <p><strong>Copyright &copy; Students of DSATM CSE</strong></p>
+    <p style="margin-bottom:var(--space-md); color: var(--text-muted); font-size: 14px;">Samarth, Shivkumar, Shreyas, Shreejith</p>
+    <div class="footer-links" style="margin-bottom:var(--space-md);">
+      <a href="index.html">Home</a>
+      <a href="hospital.html">Hospitals</a>
+      <a href="trends.html">Trends</a>
+    </div>
+  </footer>
+
+  <script src="js/bat-config.js"></script>
+  <script src="js/sos-button.js"></script>
+  <script src="js/db.js"></script>
+  <script type="module" src="js/supabase-auth.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/emergency-common.js"></script>
+  <script src="js/coverage-app.js"></script>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>

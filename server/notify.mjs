@@ -1,12 +1,28 @@
-const TWILIO_SID = process.env.TWILIO_SID || '';
-const TWILIO_TOKEN = process.env.TWILIO_TOKEN || '';
-const TWILIO_FROM = process.env.TWILIO_FROM || '';
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
-const FROM_EMAIL = process.env.FROM_EMAIL || 'no-reply@bat.local';
+// Read lazily: this module is imported before index.js loads .env.
+const env = () => ({
+  TWILIO_SID: process.env.TWILIO_SID || '',
+  TWILIO_TOKEN: process.env.TWILIO_TOKEN || '',
+  TWILIO_FROM: process.env.TWILIO_FROM || '',
+  SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || '',
+  FROM_EMAIL: process.env.FROM_EMAIL || 'no-reply@bat.local',
+});
 
-function buildAlertMessage(alert) {
+export function buildAlertMessage(alert) {
   const maps = `https://www.google.com/maps?q=${alert.lat},${alert.lng}`;
-  return `Emergency Alert (${(alert.severity||'minor').toUpperCase()})\n${alert.address || ''}\n${maps}\nAlert ID: ${alert.id}`;
+  const level = (alert.priority || alert.severity || 'urgent').toUpperCase();
+  return [
+    `${alert.is_drill ? '[DRILL] ' : ''}BAT Emergency (${level})`,
+    alert.triage_summary || '',
+    alert.address || '',
+    maps,
+    alert.console_url ? `Accept: ${alert.console_url}` : `Alert ID: ${alert.id}`,
+  ].filter(Boolean).join('\n');
+}
+
+/** Fields safe to send to hospital webhooks (no reporter tokens). */
+function webhookAlert(alert) {
+  const { track_token_hashes, crew_token_hashes, reporter_id, ...rest } = alert;
+  return rest;
 }
 
 async function postWebhook(url, payload) {
@@ -23,6 +39,7 @@ async function postWebhook(url, payload) {
 }
 
 async function sendSmsViaTwilio(to, body) {
+  const { TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM } = env();
   if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) return { ok: false, error: 'Twilio not configured' };
   try {
     const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`;
@@ -43,6 +60,7 @@ async function sendSmsViaTwilio(to, body) {
 }
 
 async function sendEmailViaSendGrid(to, subject, text) {
+  const { SENDGRID_API_KEY, FROM_EMAIL } = env();
   if (!SENDGRID_API_KEY) return { ok: false, error: 'SendGrid not configured' };
   try {
     const url = 'https://api.sendgrid.com/v3/mail/send';
@@ -63,13 +81,14 @@ async function sendEmailViaSendGrid(to, subject, text) {
 
 export async function notifyHospitals(alert, hospitals = []) {
   const msg = buildAlertMessage(alert);
+  const { TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM, SENDGRID_API_KEY } = env();
   const results = [];
   await Promise.all(hospitals.map(async (h) => {
     try {
       const resEntry = { hospital_id: h.id, name: h.name };
       // webhook first
       if (h.webhook_url) {
-        const payload = { alert, hospital: { id: h.id, name: h.name, phone: h.phone, email: h.email } };
+        const payload = { alert: webhookAlert(alert), hospital: { id: h.id, name: h.name, phone: h.phone, email: h.email } };
         const r = await postWebhook(h.webhook_url, payload);
         resEntry.webhook = r;
       }
@@ -80,7 +99,7 @@ export async function notifyHospitals(alert, hospitals = []) {
       }
       // Email if email present
       if (h.email && SENDGRID_API_KEY) {
-        const em = await sendEmailViaSendGrid(h.email, `Emergency Alert: ${alert.severity || 'minor'}`, msg + '\n\nPhoto: ' + (alert.photo_url || '')); 
+        const em = await sendEmailViaSendGrid(h.email, `BAT Emergency: ${alert.priority || alert.severity || 'urgent'}`, msg);
         resEntry.email = em;
       }
       results.push(resEntry);

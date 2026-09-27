@@ -10,6 +10,7 @@
     "test:server": "npm --prefix server test",
     "test:frontend": "npm --prefix Frontend test",
     "seed": "npm --prefix server run seed",
-    "seed:hospitals": "npm --prefix server run seed:hospitals"
+    "seed:hospitals": "npm --prefix server run seed:hospitals",
+    "simulate:emergencies": "npm --prefix server run simulate:emergencies"
   }
 }

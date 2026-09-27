@@ -3,46 +3,52 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hospital Directory — Bangalore Accidents Tracker</title>
-  <meta name="description" content="Browse hospitals across Bangalore, search by name or area, and view emergency alerts for hospital responders.">
+  <title>Hospitals &amp; Emergency Response — Bangalore Accidents Tracker</title>
+  <meta name="description" content="Find emergency-capable hospitals across Bangalore by drive time, and — for hospital responders — accept and manage live accident SOS alerts.">
   <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/emergency.css">
   <!-- Leaflet (mini-maps for emergency alert locations) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="css/sidebar.css">
 </head>
 <body>
-  <nav class="navbar" id="main-nav">
-    <a href="index.html" class="nav-logo">
-      <img src="logo.png" alt="BAT Logo" style="height: 48px; width: auto; object-fit: contain;">
-    </a>
-    <ul class="nav-links" id="nav-links">
-      <li><a href="index.html" class="nav-link">Home</a></li>
-      <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
-      <li><a href="trends.html" class="nav-link">Trends</a></li>
-      <li><a href="hospital.html" class="nav-link active">Hospital</a></li>
-      <li><a href="report.html" class="nav-link">Report Accident</a></li>
-      <li><a href="profile.html" class="nav-link">My Profile</a></li>
-    </ul>
-    <div class="nav-auth" id="nav-auth-links"></div>
-    <div class="nav-toggle" id="nav-toggle" aria-label="Toggle menu"><span></span><span></span><span></span></div>
-  </nav>
+  <script src="js/sidebar.js"></script>
 
   <main class="hospital-page">
     <div class="page-head">
       <span class="page-eyebrow">Emergency Network</span>
-      <h1 class="page-title">Hospital Directory</h1>
-      <p class="page-sub">Find hospitals across Bangalore and nearby areas. Search by name, area or phone, or view live emergency alerts.</p>
+      <h1 class="page-title">Hospitals &amp; Emergency Response</h1>
+      <p class="page-sub">Find hospitals that can treat road-accident victims, ranked by drive time. Hospital responders receive live SOS alerts here, accept them and share the ambulance's position with the person who reported the crash.</p>
     </div>
+
+    <!-- Responder console (hospital / admin accounts) -->
+    <div id="console-root"></div>
 
     <!-- Stats -->
     <div class="hospital-stats">
       <div class="stat-card stat-card-total">
-        <div class="stat-number" id="hospital-count">—</div>
-        <div class="stat-label">Hospitals on Record</div>
+        <div class="stat-number" id="stat-total">—</div>
+        <div class="stat-label">Hospitals on record</div>
       </div>
-      <div class="stat-card stat-card-fatal" id="alert-count-card" hidden>
-        <div class="stat-number" id="alert-count">0</div>
-        <div class="stat-label">Active Alerts</div>
+      <div class="stat-card stat-card-fatal">
+        <div class="stat-number" id="stat-trauma">—</div>
+        <div class="stat-label">Trauma centres</div>
+      </div>
+      <div class="stat-card stat-card-serious">
+        <div class="stat-number" id="stat-emergency">—</div>
+        <div class="stat-label">24×7 emergency departments</div>
+      </div>
+      <div class="stat-card stat-card-minor">
+        <div class="stat-number" id="stat-accepting">—</div>
+        <div class="stat-label">ERs reporting "accepting" now</div>
+      </div>
+    </div>
+
+    <div class="filter-row" style="justify-content:space-between;">
+      <div class="filter-row" style="margin:0;">
+        <a class="btn btn-danger btn-sm" href="emergency.html">🚨 Accident happening now? Send SOS</a>
+        <a class="cross-link" href="coverage.html">Emergency coverage &amp; response analytics →</a>
       </div>
     </div>
 
@@ -50,9 +56,18 @@
     <div class="hospital-toolbar">
       <div class="search-field">
         <span class="search-icon">⌕</span>
-        <input type="search" id="hospital-search" class="form-control" placeholder="Search hospital name, area or phone…" autocomplete="off">
+        <input type="search" id="hospital-search" class="form-control" placeholder="Search hospital name, area or phone…" autocomplete="off" aria-label="Search hospitals">
       </div>
-      <button class="btn btn-outline" id="refresh-btn">Refresh</button>
+      <button class="btn btn-outline" id="near-btn" type="button">📍 Nearest by drive time</button>
+      <button class="btn btn-outline" id="refresh-btn" type="button">Refresh</button>
+    </div>
+    <div class="filter-row chips" id="level-filter" role="group" aria-label="Filter by emergency capability">
+      <button type="button" class="chip" data-level="" aria-pressed="true">All</button>
+      <button type="button" class="chip" data-level="dispatchable" aria-pressed="false">Can take accident victims</button>
+      <button type="button" class="chip" data-level="trauma" aria-pressed="false">Trauma centres</button>
+      <button type="button" class="chip" data-level="emergency" aria-pressed="false">24×7 emergency</button>
+      <button type="button" class="chip" data-level="general" aria-pressed="false">General</button>
+      <button type="button" class="chip" data-level="none" aria-pressed="false">Not for accidents</button>
     </div>
     <div id="results-info" class="results-info text-muted"></div>
 
@@ -63,21 +78,18 @@
     <div class="load-more-wrap">
       <button class="btn btn-outline" id="load-more-btn" hidden>Load more</button>
     </div>
-
-    <!-- Emergency Alerts (hospital responders) -->
-    <section class="alerts-section" aria-label="Emergency alerts">
-      <div class="alerts-head">
-        <div>
-          <h2>Emergency Alerts</h2>
-          <p class="text-muted">Alerts are polled regularly for hospital responders.</p>
-        </div>
-        <span id="poll-status" class="poll-status text-muted">Idle</span>
-      </div>
-      <div id="alerts" class="alerts-list">
-        <div class="list-state">Loading alerts…</div>
-      </div>
-    </section>
+    <p class="disclaimer" style="margin-top:var(--space-lg);">Hospital data comes from OpenStreetMap. Emergency capability is inferred from OSM tags, facility names and a curated list of Bengaluru trauma centres; verified entries are confirmed by an admin. In an emergency always call 108.</p>
   </main>
+
+  <div class="emg-modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="emg-modal-box">
+      <div class="emg-modal-head">
+        <h3 id="modal-title"></h3>
+        <button type="button" class="icon-btn" id="modal-close" aria-label="Close">✕</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
 
   <footer>
     <p><strong>Copyright &copy; Students of DSATM CSE</strong></p>
@@ -94,9 +106,10 @@
   <script src="js/db.js"></script>
   <script type="module" src="js/supabase-auth.js"></script>
   <script src="js/auth.js"></script>
-  <script src="js/nav-active.js"></script>
   <script src="js/page-effects.js"></script>
-  <script type="module" src="js/hospital-app.js"></script>
+  <script src="js/emergency-common.js"></script>
+  <script src="js/hospital-app.js"></script>
+  <script src="js/sos-button.js"></script>
   <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

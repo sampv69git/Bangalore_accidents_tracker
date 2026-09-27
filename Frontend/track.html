@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SOS Tracking — Bangalore Accidents Tracker</title>
+  <meta name="description" content="Live status of your emergency alert: which hospital accepted it and where the ambulance is.">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/emergency.css">
+  <!-- Same MapLibre GL basemap as the dashboard -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="css/sidebar.css">
+</head>
+<body>
+  <script src="js/sidebar.js"></script>
+
+  <main class="emg-page">
+    <div id="notices"></div>
+    <div id="banner" class="status-banner status-banner--waiting" role="status" aria-live="polite">
+      <h1>Loading your alert…</h1>
+      <p>One moment.</p>
+    </div>
+    <ol class="stepper" id="stepper" aria-label="Progress"></ol>
+
+    <section class="emg-card">
+      <div id="track-map" class="emg-map emg-map--tall" aria-label="Map of the accident, hospital and ambulance"></div>
+      <p class="hint" id="map-caption" style="margin-top:8px;"></p>
+    </section>
+
+    <section class="emg-card" id="hospital-card" hidden aria-labelledby="hosp-h">
+      <h3 id="hosp-h">Responding hospital</h3>
+      <div id="hospital"></div>
+    </section>
+
+    <section class="emg-card" aria-labelledby="aid-h">
+      <h3 id="aid-h">While you wait</h3>
+      <ul class="aid-list" id="aid"></ul>
+      <p class="samaritan">You are protected when you help: under India's Good Samaritan law (Motor Vehicles Act, Section 134A) a bystander who helps a road-accident victim cannot be held liable, and sharing your name with police or hospitals is voluntary.</p>
+    </section>
+
+    <section class="emg-card" id="details-card" aria-labelledby="det-h">
+      <h3 id="det-h">Your report</h3>
+      <p id="report-summary" class="case-triage"></p>
+      <p id="report-note" class="case-note"></p>
+      <details id="update-box" style="margin-top:var(--space-md);">
+        <summary style="cursor:pointer;font-weight:700;">Add details or a photo</summary>
+        <div style="margin-top:var(--space-md);">
+          <div class="q-label">Update what you can see</div>
+          <label class="check-row"><input type="checkbox" data-t="conscious" data-v="no"> Someone is unconscious</label>
+          <label class="check-row"><input type="checkbox" data-t="breathing" data-v="no"> Someone is not breathing</label>
+          <label class="check-row"><input type="checkbox" data-t="bleeding" data-v="yes"> Heavy bleeding</label>
+          <label class="check-row"><input type="checkbox" data-t="trapped" data-v="yes"> Someone is trapped</label>
+          <label class="check-row" style="margin-bottom:var(--space-md);"><input type="checkbox" data-t="called_108" data-v="yes"> I have called 108</label>
+          <div class="form-row">
+            <label for="upd-note">Note for the ambulance</label>
+            <textarea id="upd-note" class="form-control" rows="2" maxlength="500"></textarea>
+          </div>
+          <div class="form-row">
+            <label for="upd-phone">Your phone number</label>
+            <input id="upd-phone" type="tel" class="form-control" inputmode="tel" placeholder="So the crew can call you">
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="upd-save">Send update</button>
+          <div class="form-row" style="margin-top:var(--space-md);">
+            <label for="upd-photo">Add a photo</label>
+            <input id="upd-photo" type="file" accept="image/*" capture="environment" class="form-control">
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="emg-card" aria-labelledby="alerted-h">
+      <h3 id="alerted-h">Hospitals alerted</h3>
+      <div id="alerted"><p class="hint">—</p></div>
+    </section>
+
+    <section class="emg-card" aria-labelledby="tl-h">
+      <h3 id="tl-h">Timeline</h3>
+      <ul class="timeline" id="timeline"></ul>
+    </section>
+
+    <section class="emg-card" id="cancel-card" hidden aria-labelledby="cancel-h">
+      <h3 id="cancel-h">No longer needed?</h3>
+      <p class="hint">Cancel so the ambulance can go to someone else.</p>
+      <div class="form-row" style="margin-top:var(--space-sm);">
+        <select id="cancel-reason" class="form-control" aria-label="Reason">
+          <option>Sent by mistake / false alarm</option>
+          <option>Patient taken to hospital by another vehicle</option>
+          <option>108 ambulance arrived</option>
+          <option>No one needs medical help</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" id="cancel-btn">Cancel this alert</button>
+    </section>
+  </main>
+
+  <div class="emg-callbar">
+    <a class="call-108" href="tel:108">📞 Call 108 Ambulance</a>
+    <a class="call-112" href="tel:112">📞 112</a>
+  </div>
+
+  <script src="js/bat-config.js"></script>
+  <script src="js/db.js"></script>
+  <script type="module" src="js/supabase-auth.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/emergency-common.js"></script>
+  <script src="js/track-app.js"></script>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>

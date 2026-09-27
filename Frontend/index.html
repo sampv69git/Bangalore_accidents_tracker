@@ -20,7 +20,7 @@
     .hero {
       position: relative;
       overflow: hidden;
-      padding: calc(70px + var(--space-2xl)) var(--space-xl) var(--space-2xl);
+      padding: calc(var(--app-top, 70px) + var(--space-2xl)) var(--space-xl) var(--space-2xl);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -199,32 +199,18 @@
     }
 
     @media (max-width: 768px) {
-      .hero { min-height: auto; padding-top: calc(70px + var(--space-xl)); }
+      .hero { min-height: auto; padding-top: calc(var(--app-top, 70px) + var(--space-xl)); }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 
+  <link rel="stylesheet" href="css/sidebar.css">
 </head>
 
 <body>
 
   <!-- ── Navigation ── -->
-  <nav class="navbar" id="main-nav">
-    <a href="index.html" class="nav-logo">
-      <img src="logo.png" alt="BAT Logo" style="height: 48px; width: auto; object-fit: contain;">
-    </a>
-    <ul class="nav-links" id="nav-links">
-      <li><a href="index.html" class="nav-link active">Home</a></li>
-      <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
-      <li><a href="trends.html" class="nav-link">Trends</a></li>
-      <li><a href="hospital.html" class="nav-link">Hospital</a></li>
-      <li><a href="report.html" class="nav-link">Report Accident</a></li>
-    </ul>
-    <div class="nav-auth" id="nav-auth-links"></div>
-    <div class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">
-      <span></span><span></span><span></span>
-    </div>
-  </nav>
+  <script src="js/sidebar.js"></script>
 
   <main>
     <!-- ── Hero Section ── -->
@@ -349,23 +335,12 @@
   </footer>
 
   <script src="js/bat-config.js"></script>
+  <script src="js/sos-button.js"></script>
   <script src="js/db.js"></script>
   <script type="module" src="js/supabase-auth.js"></script>
   <script src="js/auth.js"></script>
-  <script src="js/nav-active.js"></script>
   <script src="js/page-effects.js"></script>
   <script>
-    // Nav scroll effect
-    const nav = document.getElementById('main-nav');
-    window.addEventListener('scroll', () => {
-      nav.classList.toggle('scrolled', window.scrollY > 20);
-    });
-
-    // Mobile nav toggle
-    document.getElementById('nav-toggle').addEventListener('click', () => {
-      document.getElementById('nav-links').classList.toggle('open');
-    });
-
     // Update nav auth
     window.Auth.updateNavAuth();
 

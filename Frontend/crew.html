@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ambulance Crew — Bangalore Accidents Tracker</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/emergency.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <nav class="navbar" id="main-nav">
+    <a href="index.html" class="nav-logo">
+      <img src="logo.png" alt="BAT Logo" style="height: 48px; width: auto; object-fit: contain;">
+    </a>
+    <span class="live-pill" id="live">Connecting</span>
+  </nav>
+
+  <main class="emg-page">
+    <div id="banner" class="status-banner status-banner--waiting" role="status" aria-live="polite">
+      <h1>Loading case…</h1>
+    </div>
+
+    <section class="emg-card" aria-labelledby="scene-h">
+      <h3 id="scene-h">Scene</h3>
+      <div class="badge-row" id="scene-badges" style="margin-bottom:8px;"></div>
+      <p class="case-addr" id="scene-addr"></p>
+      <p class="case-triage" id="scene-triage"></p>
+      <p class="case-note" id="scene-note"></p>
+      <div class="case-actions" id="scene-actions"></div>
+    </section>
+
+    <section class="emg-card" aria-labelledby="share-h">
+      <h3 id="share-h">Live location</h3>
+      <p class="hint" id="share-text">Share this phone's location so the bystander and hospital can see the ambulance approach.</p>
+      <button type="button" class="sos-send" id="share-btn" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);box-shadow:0 12px 28px rgba(37,99,235,.3);margin-top:8px;">Start sharing location</button>
+    </section>
+
+    <section class="emg-card" aria-labelledby="status-h">
+      <h3 id="status-h">Update status</h3>
+      <div id="status-actions" class="case-actions"></div>
+    </section>
+
+    <section class="emg-card">
+      <div id="crew-map" class="emg-map emg-map--tall"></div>
+    </section>
+
+    <section class="emg-card" id="dest-card" aria-labelledby="dest-h">
+      <h3 id="dest-h">Destination hospital</h3>
+      <div id="dest"></div>
+    </section>
+  </main>
+
+  <script src="js/bat-config.js"></script>
+  <script src="js/emergency-common.js"></script>
+  <script src="js/crew-app.js"></script>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>

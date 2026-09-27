@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ask BAT — Bangalore Accidents Tracker</title>
+  <meta name="description" content="Ask questions about Bengaluru road accidents in plain English. An AI agent answers from the tracker's data with charts and shows how it got there.">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/ai.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/sidebar.css">
+</head>
+<body>
+
+  <script src="js/sidebar.js"></script>
+
+  <main class="ai-page">
+    <header class="ai-head">
+      <h1 class="ai-title">Ask BAT</h1>
+      <p class="ai-sub">Ask about Bengaluru road accidents in plain English. An AI agent picks from a fixed set of safe analysis tools, runs them on the tracker's data, and answers with a chart. Every figure is checked against the data.</p>
+      <p class="ai-status" id="ai-status" aria-live="polite">Checking AI status…</p>
+    </header>
+
+    <section class="suggestions" aria-label="Example questions">
+      <button class="chip" type="button">Which Koramangala junctions are worst after 10pm?</button>
+      <button class="chip" type="button">Which areas have the most fatal accidents?</button>
+      <button class="chip" type="button">Compare Hebbal vs Yelahanka</button>
+      <button class="chip" type="button">Where is risk predicted to be highest?</button>
+      <button class="chip" type="button">Are accidents increasing over the years?</button>
+      <button class="chip" type="button">Show recent incidents involving a bus</button>
+    </section>
+
+    <section class="conversation" id="conversation" aria-live="polite"></section>
+
+    <form class="ask-form" id="ask-form" autocomplete="off">
+      <label for="ask-input" class="sr-only">Your question</label>
+      <input id="ask-input" class="ask-input" type="text" maxlength="300" placeholder="e.g. How many fatal accidents on Outer Ring Road in 2025?" required>
+      <button class="btn btn-primary ask-btn" id="ask-btn" type="submit">Ask</button>
+    </form>
+    <p class="ai-footnote">Answers use reported incidents only and can be incomplete. Runs on free AI models; if the free quota is used up, a rule-based planner answers instead.</p>
+  </main>
+
+  <footer>
+    <p style="text-align:center;padding:var(--space-md);color:var(--text-muted)">&copy; Students of DSATM CSE</p>
+  </footer>
+
+  <script src="js/bat-config.js"></script>
+  <script src="js/sos-button.js"></script>
+  <script src="js/db.js"></script>
+  <script type="module" src="js/supabase-auth.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ai-common.js"></script>
+  <script src="js/ask-app.js"></script>
+  <script src="js/page-effects.js"></script>
+</body>
+</html>

@@ -11,3 +11,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# AI feature caches (downloaded ONNX models, digests, integrity results)
+server/.cache/

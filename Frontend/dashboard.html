@@ -10,26 +10,13 @@
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.css">
   <script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
   <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/ai.css">
+  <link rel="stylesheet" href="css/sidebar.css">
 </head>
 <body>
 
 <!-- ── Top Navbar ─────────────────────────────────────────────── -->
-<nav class="topbar" id="main-nav">
-  <a href="index.html" class="topbar-brand">
-    <img src="logo.png" alt="BAT Logo" style="height: 48px; width: auto; object-fit: contain;">
-    
-    
-  </a>
-  <ul class="topbar-links" id="nav-links">
-    <li><a href="index.html">Home</a></li>
-    <li><a href="dashboard.html" class="active">Dashboard</a></li>
-    <li><a href="trends.html">Trends</a></li>
-    <li><a href="hospital.html">Hospital</a></li>
-    <li><a href="report.html">Report</a></li>
-  </ul>
-  <div class="topbar-right" id="nav-auth-links"></div>
-  <button class="nav-toggle" id="nav-toggle" aria-label="Menu">&#9776;</button>
-</nav>
+<script src="js/sidebar.js"></script>
 
 <!-- ── App Layout ─────────────────────────────────────────────── -->
 <div class="app-layout">
@@ -144,6 +131,18 @@
         <input type="checkbox" id="toggle-heatmap">
         <span class="heat-label">Heatmap</span>
       </label>
+      <label class="heat-toggle" title="Where incidents are most likely next, from a model trained on past reports">
+        <input type="checkbox" id="toggle-risk">
+        <span class="heat-label">Predicted risk</span>
+      </label>
+      <div class="risk-legend" id="risk-legend">
+        <div class="swatches">
+          <span><span class="sw" style="background:#fde68a"></span>Medium</span>
+          <span><span class="sw" style="background:#fb923c"></span>High</span>
+          <span><span class="sw" style="background:#dc2626"></span>Very high</span>
+        </div>
+        <div class="risk-note" id="risk-note">Loading model…</div>
+      </div>
       <div class="map-legend">
         <span class="leg-dot" style="background:#dc2626"></span>Critical
         <span class="leg-dot" style="background:#d97706;margin-left:10px"></span>Moderate
@@ -168,19 +167,16 @@
 </div><!-- /.app-layout -->
 
 <script src="js/bat-config.js"></script>
+<script src="js/sos-button.js"></script>
 <script src="js/db.js"></script>
 <script type="module" src="js/supabase-auth.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/dashboard-app.js"></script>
-<script src="js/nav-active.js"></script>
 <script src="js/page-effects.js"></script>
 <script>
   window.Auth?.updateNavAuth?.();
   document.getElementById('last-updated').textContent =
     'Bangalore · ' + new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
-  document.getElementById('nav-toggle').addEventListener('click', () => {
-    document.getElementById('nav-links').classList.toggle('open');
-  });
 </script>
 </body>
 </html>

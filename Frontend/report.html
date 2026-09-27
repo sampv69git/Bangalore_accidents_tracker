@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/maplibre-gl@4.3.2/dist/maplibre-gl.js"></script>
   <style>
     .report-page {
-      padding: calc(65px + var(--space-xl)) var(--space-xl) var(--space-xl);
+      padding: calc(var(--app-top, 65px) + var(--space-xl)) var(--space-xl) var(--space-xl);
     }
     .report-layout {
       display: grid;
@@ -19,7 +19,7 @@
       gap: var(--space-lg);
       align-items: start;
     }
-    .report-map-panel { position: sticky; top: calc(65px + var(--space-lg)); }
+    .report-map-panel { position: sticky; top: calc(var(--app-top, 65px) + var(--space-lg)); }
     .report-map-wrap {
       background: var(--glass-bg);
       border: 1px solid var(--glass-border);
@@ -153,28 +153,15 @@
       #report-map { height: 400px; min-height: unset; }
     }
     @media (max-width: 768px) {
-      .report-page { padding: calc(65px + var(--space-md)) var(--space-md) var(--space-md); }
+      .report-page { padding: calc(var(--app-top, 65px) + var(--space-md)) var(--space-md) var(--space-md); }
     }
   </style>
+  <link rel="stylesheet" href="css/sidebar.css">
 </head>
 <body>
 
 <!-- ── Navigation ── -->
-<nav class="navbar scrolled" id="main-nav">
-  <a href="index.html" class="nav-logo">
-    <img src="logo.png" alt="BAT Logo" style="height: 48px; width: auto; object-fit: contain;">
-    
-  </a>
-  <ul class="nav-links" id="nav-links">
-    <li><a href="index.html" class="nav-link">Home</a></li>
-    <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
-      <li><a href="trends.html" class="nav-link">Trends</a></li>
-      <li><a href="hospital.html" class="nav-link">Hospital</a></li>
-      <li><a href="report.html" class="nav-link active">Report Accident</a></li>
-  </ul>
-  <div class="nav-auth" id="nav-auth-links"></div>
-  <div class="nav-toggle" id="nav-toggle"><span></span><span></span><span></span></div>
-</nav>
+<script src="js/sidebar.js"></script>
 
 <div class="report-page" id="page-content">
   <!-- Content injected by JS based on auth state -->
@@ -193,20 +180,13 @@
   </footer>
 
 <script src="js/bat-config.js"></script>
+<script src="js/sos-button.js"></script>
 <script src="js/db.js"></script>
 <script type="module" src="js/supabase-auth.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/page-effects.js"></script>
 <script>
   window.Auth.updateNavAuth();
-  document.getElementById('nav-toggle').addEventListener('click', () => {
-    document.getElementById('nav-links').classList.toggle('open');
-  });
-
-  // Ensure nav active class set correctly
-  (function(){
-    try { window.addEventListener('DOMContentLoaded', function(){ var s = document.createElement('script'); s.src='js/nav-active.js'; document.body.appendChild(s); }); } catch (e) {}
-  })();
 
   // Role Guard: require authenticated Supabase session (Req 3.6)
   (async function() {
@@ -232,6 +212,7 @@
       <div class="report-header">
         <h1> Report an Accident</h1>
         <p>Geotagging as <strong style="color:var(--color-primary);">${userName}</strong>. Click the map to place accident location.</p>
+        <div class="alert alert-error" style="margin-top:var(--space-md);">🚨 <strong>Someone hurt right now?</strong> Use <a href="emergency.html" style="color:inherit;font-weight:800;text-decoration:underline;">Emergency SOS</a> — it alerts the nearest hospitals in one tap, no sign-in needed.</div>
       </div>
 
       <div class="steps">
@@ -330,6 +311,16 @@
                 <img id="preview-img" src="" alt="Proof preview">
                 <div class="upload-preview-name" id="preview-name"></div>
               </div>
+            </div>
+
+            <!-- Live emergency: also alert hospitals -->
+            <div class="card" style="margin-bottom:var(--space-lg);border-color:var(--color-fatal-border);background:var(--color-fatal-bg);">
+              <label class="check-row" style="display:flex;gap:10px;align-items:flex-start;font-weight:700;cursor:pointer;">
+                <input type="checkbox" id="field-live" style="width:20px;height:20px;margin-top:2px;accent-color:#dc2626;">
+                <span>🚑 This is happening right now — alert nearby hospitals
+                  <span style="display:block;font-weight:400;font-size:var(--font-size-xs);color:var(--text-secondary);margin-top:4px;">We will also send an SOS to the nearest emergency hospitals and show you live ambulance tracking. Still call 108 if anyone is badly hurt.</span>
+                </span>
+              </label>
             </div>
 
             <!-- Submit -->
@@ -602,35 +593,47 @@
           const data = await response.json();
           document.getElementById('step5').classList.add('done');
           document.getElementById('step5').querySelector('.step-circle').textContent = '';
+          if (document.getElementById('field-live').checked) {
+            // Live crash: also dispatch to hospitals and switch to live tracking.
+            try {
+              const sosRes = await fetch(`${apiBase}/api/emergency`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                body: JSON.stringify({ lat: reportData.latitude, lng: reportData.longitude, severity: reportData.severity, note: reportData.description, address: `${reportData.location}, ${reportData.area}`, source: 'report', report_id: data.id })
+              });
+              const sos = await sosRes.json();
+              if (!sosRes.ok) throw new Error(sos.error || 'SOS failed');
+              try { localStorage.setItem('bat.lastSos', JSON.stringify({ id: sos.alertId, t: sos.trackToken, at: Date.now() })); } catch (_) {}
+              showAlert('success', ` Report saved and nearby hospitals alerted. Opening live tracking…`);
+              setTimeout(() => { window.location.href = sos.trackUrl; }, 1200);
+            } catch (sosErr) {
+              showAlert('error', ` Your report was saved, but hospitals could not be alerted (${sosErr.message}). <a href="emergency.html" style="color:inherit;font-weight:700;">Send an SOS</a> or call <a href="tel:108" style="color:inherit;font-weight:700;">108</a>.`);
+            }
+            return;
+          }
           showAlert('success', ` Report submitted successfully! It will appear on the map after verification. <a href="profile.html" style="color:inherit;font-weight:700;">View in your profile →</a>`);
           setTimeout(() => { window.location.href = 'profile.html'; }, 2500);
-        } else if (response && response.status === 400) {
+        } else if (response && (response.status === 400 || response.status === 422)) {
           // Validation errors from server
-          const errorData = await response.json();
+          const errorData = await response.json().catch(() => ({}));
           const errorMsg = errorData.errors
             ? errorData.errors.join(', ')
             : (errorData.error || 'Invalid report data. Please check your inputs.');
           showAlert('error', ' ' + errorMsg);
           btn.disabled = false;
           btn.innerHTML = ' Submit Accident Report';
-        } else if (!response || response.status !== 400) {
-          // Unauthorized — session expired or invalid
-          const localResult = window.DB && window.DB.addAccident
-            ? window.DB.addAccident({ ...reportData, reportedBy: session.user.id, status: 'pending' })
-            : null;
-          if (!localResult || !localResult.success) {
-            showAlert('error', ' Unable to save your report. Please try again.');
-            btn.disabled = false;
-            btn.innerHTML = ' Submit Accident Report';
-            return;
-          }
-          document.getElementById('step5').classList.add('done');
-          document.getElementById('step5').querySelector('.step-circle').textContent = '';
-          showAlert('success', ' Report saved successfully! You can view it in your profile.');
-          setTimeout(() => { window.location.href = 'profile.html'; }, 1200);
+        } else if (response && (response.status === 401 || response.status === 403)) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMsg = errorData.error || 'Your session is invalid or expired.';
+          showAlert('error', ' ' + errorMsg + ' Please log in again and retry.');
+          setTimeout(() => {
+            window.location.href = 'login.html?returnTo=report.html';
+          }, 1200);
         } else {
           // Server error (500 or other)
-          showAlert('error', ' An unexpected error occurred. Please try again later.');
+          const errorData = await response?.json?.().catch(() => ({}));
+          const detail = errorData?.error || 'An unexpected error occurred. Please try again later.';
+          showAlert('error', ' ' + detail);
           btn.disabled = false;
           btn.innerHTML = ' Submit Accident Report';
         }

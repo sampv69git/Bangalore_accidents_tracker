@@ -8,17 +8,22 @@
     "seed:hospitals": "node seed-hospitals.mjs",
     "import:xlsx": "node import-from-xlsx.mjs",
     "import:fewfinal": "node import-few-final.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:ai": "vitest run __tests__/ai-*.test.js",
+    "simulate:emergencies": "node scripts/simulate-emergencies.mjs",
+    "test:emergency": "vitest run __tests__/emergency-*.test.js"
   },
   "dependencies": {
     "@openrouter/sdk": "^0.12.35",
     "@supabase/supabase-js": "^2.105.4",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
+    "exifr": "^7.1.3",
     "express": "^4.21.0",
     "express-rate-limit": "^6.8.0",
     "node-fetch": "^3.3.2",
     "pg": "^8.13.0",
+    "sharp": "^0.34.5",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -26,5 +31,8 @@
     "fast-check": "^4.8.0",
     "supertest": "^7.2.2",
     "vitest": "^4.1.8"
+  },
+  "optionalDependencies": {
+    "@huggingface/transformers": "^3.8.1"
   }
 }

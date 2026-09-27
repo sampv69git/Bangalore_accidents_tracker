@@ -20,7 +20,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── CSS variables ── */
 :root {
-  --topbar-h:    54px;
+  --topbar-h:    var(--app-top, 0px); /* mobile top bar from sidebar.css; 0 on desktop */
   --sidebar-w:   340px;
   
   --fatal:       #ef4444; /* Red */
@@ -40,70 +40,6 @@ button { font-family: inherit; cursor: pointer; }
   --radius:      12px;
   --radius-sm:   8px;
 }
-
-/* ── Top Navbar ── */
-.topbar {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: var(--topbar-h);
-  background: var(--white);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 24px;
-  z-index: 1000;
-  box-shadow: var(--shadow-sm);
-}
-
-.topbar-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.brand-icon { font-size: 18px; }
-
-.brand-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.01em;
-}
-
-.brand-sub {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--text-3);
-  margin-left: 4px;
-}
-
-.topbar-links {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.topbar-links li a {
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-2);
-  transition: background 0.15s, color 0.15s;
-}
-
-.topbar-links li a:hover { background: #f1f5f9; color: var(--text); }
-.topbar-links li a.active {
-  background: var(--blue-lt);
-  color: var(--blue);
-  font-weight: 600;
-}
-
-.topbar-right { font-size: 13px; color: var(--text-2); }
-.nav-toggle { display: none; background: none; border: none; font-size: 20px; color: var(--text-2); margin-left: 12px; }
 
 /* ── App layout: sidebar + map ── */
 .app-layout {
@@ -255,14 +191,15 @@ button { font-family: inherit; cursor: pointer; }
   appearance: auto;
 }
 
+.f-select:hover { border-color: #cbd5e1; }
 .f-select:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+  border-color: var(--minor);
+  box-shadow: 0 0 0 3px rgba(16,185,129,.16);
 }
 
 .date-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* let date inputs shrink instead of overflowing */
   gap: 6px;
 }
 
@@ -769,15 +706,10 @@ button { font-family: inherit; cursor: pointer; }
   }
 
   .map-area { height: 60vh; flex-shrink: 0; }
-
-  .topbar-links { display: none; }
-  .topbar-links.open { display: flex; flex-direction: column; position: fixed; top: var(--topbar-h); left:0; right:0; background: var(--white); border-bottom: 1px solid var(--border); padding: 8px 0; z-index: 999; }
-  .nav-toggle { display: block; }
 }
 
 @media (max-width: 480px) {
   .stats-strip { grid-template-columns: 1fr 1fr; }
-  .brand-sub { display: none; }
 }
 
 /* Dashboard receives the same polished entrance motion as the content pages. */
